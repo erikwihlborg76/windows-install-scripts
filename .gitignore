@@ -1,0 +1,16 @@
+# Editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local output and downloaded artifacts
+*.log
+*.zip
+Online_KMS_Activation.cmd
+
+# Private or generated configuration must live under Apps-data, not this repository
+resources/PowerToys/
+resources/DSC/
+resources/Microsoft Edge/

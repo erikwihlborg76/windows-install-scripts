@@ -1,0 +1,20 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate repository with Windows PowerShell 5.1
+        shell: powershell
+        run: .\tools\validate.ps1
