@@ -163,6 +163,11 @@ SwitchIntranetSitesToWorkProfile
 DWORD:0
 
 Computer
+SOFTWARE\Policies\Microsoft\Edge\Recommended
+EdgeOpenExternalLinksWithPrimaryWorkProfileEnabled
+DWORD:0
+
+Computer
 SOFTWARE\Policies\Microsoft\Edge
 FavoritesBarEnabled
 DWORD:0
