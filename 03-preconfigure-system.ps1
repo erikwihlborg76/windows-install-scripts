@@ -88,7 +88,7 @@ try {
     )
 
     foreach ($link in $links) {
-        Ensure-Link @link
+        Set-FileSystemLink @link
     }
 
     # ========================================================
@@ -138,7 +138,7 @@ try {
         -DestinationFolder $FoobarAppData `
         -Description "foobar2000 config.sqlite"
 
-    Ensure-Link `
+    Set-FileSystemLink `
         -LinkPath (Join-Path $FoobarAppData "playlists-v2.0") `
         -TargetPath (Join-Path $SyncRoot "Apps-data\foobar2000-v2\playlists-v2.0")
 
@@ -149,19 +149,8 @@ try {
     Write-Host ""
     Write-Host "========== Start menu shortcuts =========="
 
-    $ShortcutsRoot = Join-Path $SyncRoot "Apps-data\Shortcuts"
-
     Invoke-RoboCopySafe `
-        -SourceFolder (Join-Path $ShortcutsRoot "All") `
-        -DestinationFolder $StartMenu
-
-    $TargetShortcutsFolder = switch ($Target) {
-        "HOME" { "Home" }
-        "WORK" { "Work" }
-    }
-
-    Invoke-RoboCopySafe `
-        -SourceFolder (Join-Path $ShortcutsRoot $TargetShortcutsFolder) `
+        -SourceFolder "C:\Apps-data\Shortcuts" `
         -DestinationFolder $StartMenu
 
     Write-Host ""

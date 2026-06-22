@@ -27,7 +27,8 @@ $LibDir = Join-Path $PSScriptRoot "lib"
 . (Join-Path $LibDir "admin.ps1")
 . (Join-Path $LibDir "logging.ps1")
 . (Join-Path $LibDir "links-and-copy.ps1")
-. (Join-Path $LibDir "system-tweaks.ps1")
+. (Join-Path $LibDir "apply-settings.ps1")
+. (Join-Path $PSScriptRoot "settings\windows.ps1")
 
 # ============================================================
 # Main
@@ -45,7 +46,7 @@ try {
     Copy-WindowsTerminalSettings -ResourcesDir $ResourcesDir
     Copy-PowerToysSettings -SyncRoot $SyncRoot
 
-    Invoke-WindowsTweaks -Target $Target
+    Set-WindowsSettings -Target $Target
     Import-Lgpo -ResourcesDir $ResourcesDir
 
     # ===== Omnissa Horizon OS Optimization Tool =====

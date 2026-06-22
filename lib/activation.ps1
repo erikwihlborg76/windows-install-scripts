@@ -1,4 +1,4 @@
-function Check-WindowsActivation {
+function Test-WindowsActivation {
     # Legitimate activation/status check only.
     # This does not bypass activation.
 

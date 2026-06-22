@@ -59,7 +59,7 @@ function Remove-ReparsePoint {
     }
 }
 
-function Ensure-Link {
+function Set-FileSystemLink {
     param(
         [Parameter(Mandatory)]
         [string] $LinkPath,

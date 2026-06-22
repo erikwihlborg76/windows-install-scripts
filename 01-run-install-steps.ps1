@@ -1,6 +1,6 @@
 # 01-run-install-steps.ps1
 # Usage:
-#   Launch .\00-run-install.cmd
+#   Launch .\00-run-install-manual.cmd
 #
 # PowerShell installer orchestrator. The CMD entry point configures script execution first.
 
@@ -60,7 +60,7 @@ try {
             Parameters = @{ Target = $target; SyncRoot = $syncRoot }
         }
         @{
-            Name       = "06-remove-bloatware.ps1"
+            Name       = "06-remove-apps.ps1"
             Parameters = @{ Target = $target }
         }
     )

@@ -3,7 +3,7 @@
 Opinionated, interactive provisioning for personal and work Windows computers. It installs applications with WinGet, links synchronized data to `C:\Apps` and `C:\Apps-data`, restores selected settings, applies Windows and Edge policies, and removes unwanted packages.
 
 > [!WARNING]
-> This installer runs as administrator and has no automatic rollback. It disables automatic Windows Update, Edge SmartScreen, telemetry-related features, services, and scheduled tasks; HOME also creates placeholder MDM enrollment entries. Review [system-tweaks.ps1](lib/system-tweaks.ps1), [LGPO policy](resources/LGPO/global_policy_objects.txt), and [app removal](06-remove-bloatware.ps1) before running. Create a backup or restore point first.
+> This installer runs as administrator and has no automatic rollback. It disables automatic Windows Update, Edge SmartScreen, telemetry-related features, services, and scheduled tasks; HOME also creates placeholder MDM enrollment entries. Review [Windows settings](settings/windows.ps1), [LGPO policy](resources/LGPO/global_policy_objects.txt), and [app removal](06-remove-apps.ps1) before running. Create a backup or restore point first.
 
 ## Requirements
 
@@ -54,31 +54,28 @@ Apps-data\
 │   ├── LightSwitch\
 │   └── CommandPalette\settings.json
 └── Shortcuts\
-    ├── All\
-    ├── Home\
-    └── Work\
 ```
 
-`Shortcuts\All` is copied first, followed by `Home` or `Work`; target-specific shortcuts can therefore override common ones. Keep account data, exported application state, geographic settings, and other private files under `Apps-data`, not in this repository.
+Everything under `C:\Apps-data\Shortcuts` is copied to the user's Start menu. Keep account data, exported application state, geographic settings, and other private files under `Apps-data`, not in this repository.
 
 ## Run
 
 Local checkout:
 
 ```powershell
-.\00-run-install.cmd
+.\00-run-install-manual.cmd
 ```
 
 Remote bootstrap:
 
 ```powershell
-irm https://raw.githubusercontent.com/erikwihlborg76/windows-install-scripts/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/erikwihlborg76/windows-install-scripts/main/00-install.ps1 | iex
 ```
 
 For the safer inspect-first approach:
 
 ```powershell
-$url = 'https://raw.githubusercontent.com/erikwihlborg76/windows-install-scripts/main/install.ps1'
+$url = 'https://raw.githubusercontent.com/erikwihlborg76/windows-install-scripts/main/00-install.ps1'
 irm $url -OutFile "$env:TEMP\windows-install.ps1"
 notepad "$env:TEMP\windows-install.ps1"
 & "$env:TEMP\windows-install.ps1"
@@ -93,7 +90,7 @@ The bootstrap supports `INSTALL_REPOSITORY`, `INSTALL_REF`, and optional `INSTAL
 3. Detect Windows, update the boot-menu label, and create junctions.
 4. Restore private settings and Start-menu shortcuts.
 5. Install the configured WinGet packages.
-6. Apply registry tweaks, LGPO policy, Terminal/PowerToys settings, and power changes.
+6. Apply registry and system settings, LGPO policy, Terminal/PowerToys settings, and power changes.
 7. Remove configured applications, AppX packages, and capabilities.
 
 ### Target differences
@@ -105,16 +102,16 @@ The bootstrap supports `INSTALL_REPOSITORY`, `INSTALL_REF`, and optional `INSTAL
 | Disable NTFS last-access updates | Yes | No |
 | Install Node.js LTS | No | Yes |
 | Explicitly remove Teams | Yes | No |
-| Shortcut overlay | `Home` | `Work` |
 
 Common packages include Visual Studio Code, foobar2000, PowerToys, 1Password, Total Commander, X-Mouse Button Control, Paint.NET, Windows Terminal, PowerShell 7, Notion, Git, and LGPO.
 
 ## Customize
 
 - Package installs: [04-install-apps.ps1](04-install-apps.ps1)
-- App removal: [06-remove-bloatware.ps1](06-remove-bloatware.ps1)
+- App removal: [06-remove-apps.ps1](06-remove-apps.ps1)
 - Links, private settings, and shortcuts: [03-preconfigure-system.ps1](03-preconfigure-system.ps1)
-- Registry, policy, power, and application settings: [lib/system-tweaks.ps1](lib/system-tweaks.ps1)
+- Registry and Windows behavior: [settings/windows.ps1](settings/windows.ps1)
+- Reusable setting operations: [lib/apply-settings.ps1](lib/apply-settings.ps1)
 - Junction/copy helper behavior: [lib/links-and-copy.ps1](lib/links-and-copy.ps1)
 - LGPO values: [resources/LGPO/global_policy_objects.txt](resources/LGPO/global_policy_objects.txt)
 - Terminal settings: [resources/Windows Terminal/settings.json](resources/Windows%20Terminal/settings.json)
@@ -129,7 +126,7 @@ Logs are written under `%TEMP%`:
 
 - `04-install-apps_winget.log`
 - `05-postconfigure-system.log`
-- `06-remove-bloatware.log`
+- `06-remove-apps.log`
 - `LGPO.stdout.log` and `LGPO.stderr.log`
 
 Fatal errors stop the workflow. Post-configuration and removal warnings are logged but do not block later steps. The installer is mostly rerunnable, but it is not transactional; restoring removed policies, services, capabilities, or applications is manual.

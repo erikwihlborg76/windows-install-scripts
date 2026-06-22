@@ -1,7 +1,7 @@
-# 06-remove-bloatware.ps1
+# 06-remove-apps.ps1
 # Usage:
-#   .\06-remove-bloatware.ps1 -Target HOME
-#   .\06-remove-bloatware.ps1 -Target WORK
+#   .\06-remove-apps.ps1 -Target HOME
+#   .\06-remove-apps.ps1 -Target WORK
 #
 # Normally invoked by .\01-run-install-steps.ps1.
 
@@ -13,7 +13,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$logPath = Join-Path $env:TEMP "06-remove-bloatware.log"
+$logPath = Join-Path $env:TEMP "06-remove-apps.log"
 
 # ============================================================
 # Functions

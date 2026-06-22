@@ -60,7 +60,7 @@ try {
     }
     Write-Host ""
     Write-Host "========== Windows activation check =========="
-    Check-WindowsActivation
+    Test-WindowsActivation
 
     Write-Host ""
     Write-Host "========== Summary =========="

@@ -1,6 +1,6 @@
 # Public bootstrap entry point.
 # After publishing, run with:
-#   irm https://raw.githubusercontent.com/erikwihlborg76/windows-install-scripts/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/erikwihlborg76/windows-install-scripts/main/00-install.ps1 | iex
 
 & {
     $ErrorActionPreference = "Stop"
@@ -60,9 +60,9 @@
 
         Expand-Archive -LiteralPath $archivePath -DestinationPath $extractPath -Force
 
-        $launchers = @(Get-ChildItem -LiteralPath $extractPath -Filter "00-run-install.cmd" -File -Recurse)
+        $launchers = @(Get-ChildItem -LiteralPath $extractPath -Filter "00-run-install-manual.cmd" -File -Recurse)
         if ($launchers.Count -ne 1) {
-            throw "Expected exactly one 00-run-install.cmd in the downloaded repository; found $($launchers.Count)."
+            throw "Expected exactly one 00-run-install-manual.cmd in the downloaded repository; found $($launchers.Count)."
         }
 
         $launcher = $launchers[0].FullName
