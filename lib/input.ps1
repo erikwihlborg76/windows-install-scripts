@@ -63,7 +63,7 @@ function Confirm-TweaksAndRemoval {
     Write-Host ""
     Write-Host "This workflow will:"
     Write-Host "  - Apply sync-root-independent Windows tweaks."
-    Write-Host "  - Remove the apps configured in 06-remove-apps.ps1."
+    Write-Host "  - Remove the apps configured in 07-remove-apps.ps1."
     Write-Host ""
     Write-Host "It will not select a sync root, create sync links, restore private settings,"
     Write-Host "or install applications."

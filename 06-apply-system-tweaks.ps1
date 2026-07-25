@@ -1,7 +1,7 @@
-# 05-apply-system-tweaks.ps1
+# 06-apply-system-tweaks.ps1
 # Usage:
-#   .\05-apply-system-tweaks.ps1 -Target HOME
-#   .\05-apply-system-tweaks.ps1 -Target WORK
+#   .\06-apply-system-tweaks.ps1 -Target HOME
+#   .\06-apply-system-tweaks.ps1 -Target WORK
 #
 # This step does not read from the configured sync root or C:\Apps(-data).
 # Normally invoked by .\01-run-install-steps.ps1.
@@ -15,7 +15,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $ResourcesDir = Join-Path $PSScriptRoot "resources"
-$logPath = Join-Path $env:TEMP "05-apply-system-tweaks.log"
+$logPath = Join-Path $env:TEMP "06-apply-system-tweaks.log"
 
 # ============================================================
 # Functions

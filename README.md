@@ -3,7 +3,7 @@
 Opinionated, interactive provisioning for personal and work Windows computers. The full workflow installs applications with WinGet, links synchronized data to `C:\Apps` and `C:\Apps-data`, restores selected settings, applies Windows and Edge policies, and removes unwanted packages. A separate tweaks-and-removal workflow skips sync-root setup and application installation.
 
 > [!WARNING]
-> This installer runs as administrator and has no automatic rollback. It disables automatic Windows Update, Edge SmartScreen, telemetry-related features, services, and scheduled tasks; HOME also creates placeholder MDM enrollment entries. Review [system tweaks](05-apply-system-tweaks.ps1), [Windows settings](settings/windows.ps1), [LGPO policy](resources/LGPO/global_policy_objects.txt), and [app removal](06-remove-apps.ps1) before running. Create a backup or restore point first.
+> This installer runs as administrator and has no automatic rollback. It disables automatic Windows Update, Edge SmartScreen, telemetry-related features, services, and scheduled tasks; HOME also creates placeholder MDM enrollment entries. Review [system tweaks](06-apply-system-tweaks.ps1), [Windows settings](settings/windows.ps1), [LGPO policy](resources/LGPO/global_policy_objects.txt), and [app removal](07-remove-apps.ps1) before running. Create a backup or restore point first.
 
 ## Requirements
 
@@ -72,7 +72,7 @@ Local checkout:
 .\00-run-install-manual.cmd
 ```
 
-The launcher prompts for either the full workflow or **Tweaks and app removal only**. The latter never selects a sync root and runs only `05-apply-system-tweaks.ps1` followed by `06-remove-apps.ps1`.
+The launcher prompts for either the full workflow or **Tweaks and app removal only**. The latter never selects a sync root and runs only `06-apply-system-tweaks.ps1` followed by `07-remove-apps.ps1`.
 
 Remote bootstrap:
 
@@ -124,8 +124,8 @@ Full-workflow common packages include Visual Studio Code, foobar2000, PowerToys,
 ## Customize
 
 - Package installs: [04-install-apps.ps1](04-install-apps.ps1)
-- App removal: [06-remove-apps.ps1](06-remove-apps.ps1)
-- Sync-independent system tweaks: [05-apply-system-tweaks.ps1](05-apply-system-tweaks.ps1)
+- App removal: [07-remove-apps.ps1](07-remove-apps.ps1)
+- Sync-independent system tweaks: [06-apply-system-tweaks.ps1](06-apply-system-tweaks.ps1)
 - Links, private settings, and shortcuts: [03-preconfigure-system.ps1](03-preconfigure-system.ps1) and [05-postconfigure-system.ps1](05-postconfigure-system.ps1)
 - Registry and Windows behavior: [settings/windows.ps1](settings/windows.ps1)
 - Reusable setting operations: [lib/apply-settings.ps1](lib/apply-settings.ps1)
@@ -142,9 +142,9 @@ Reusable logic belongs in `lib`, public static configuration in `resources`, and
 Logs are written under `%TEMP%`:
 
 - `04-install-apps_winget.log`
-- `05-apply-system-tweaks.log`
+- `06-apply-system-tweaks.log`
 - `05-postconfigure-system.log`
-- `06-remove-apps.log`
+- `07-remove-apps.log`
 - `LGPO.stdout.log` and `LGPO.stderr.log`
 
 Fatal errors stop the workflow. System-tweak, synced-setting, and removal warnings are logged but do not block later steps. The installer is mostly rerunnable, but it is not transactional; restoring removed policies, services, capabilities, or applications is manual.

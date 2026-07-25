@@ -57,11 +57,11 @@ try {
                 Parameters = @{ SyncRoot = $syncRoot }
             }
             @{
-                Name       = "05-apply-system-tweaks.ps1"
+                Name       = "06-apply-system-tweaks.ps1"
                 Parameters = @{ Target = $target }
             }
             @{
-                Name       = "06-remove-apps.ps1"
+                Name       = "07-remove-apps.ps1"
                 Parameters = @{ Target = $target }
             }
         )
@@ -76,11 +76,11 @@ try {
 
         $steps = @(
             @{
-                Name       = "05-apply-system-tweaks.ps1"
+                Name       = "06-apply-system-tweaks.ps1"
                 Parameters = @{ Target = $target }
             }
             @{
-                Name       = "06-remove-apps.ps1"
+                Name       = "07-remove-apps.ps1"
                 Parameters = @{ Target = $target }
             }
         )
