@@ -19,6 +19,7 @@ $requiredPaths = @(
     "02-select-sync-root.ps1"
     "03-preconfigure-system.ps1"
     "04-install-apps.ps1"
+    "05-apply-system-tweaks.ps1"
     "05-postconfigure-system.ps1"
     "06-remove-apps.ps1"
     "settings\windows.ps1"

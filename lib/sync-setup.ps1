@@ -1,18 +1,3 @@
-function Select-InstallTarget {
-    Write-Host ""
-    Write-Host "========== Select target =========="
-    Write-Host "  [1] HOME"
-    Write-Host "  [2] WORK"
-    Write-Host ""
-
-    $choice = Read-Choice -Prompt "Enter choice (1-2)" -AllowedValues @("1", "2")
-
-    switch ($choice) {
-        "1" { return "HOME" }
-        "2" { return "WORK" }
-    }
-}
-
 function Select-SyncClient {
     Write-Host ""
     Write-Host "========== Select sync client =========="
