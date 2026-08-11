@@ -1,6 +1,6 @@
 # Windows Install Scripts
 
-Opinionated, interactive provisioning for personal and work Windows computers. The full workflow installs applications with WinGet, links synchronized data to `C:\Apps` and `C:\Apps-data`, restores selected settings, applies Windows and Edge policies, and removes unwanted packages. A separate tweaks-and-removal workflow skips sync-root setup and application installation.
+Opinionated, interactive provisioning for personal and work Windows computers. The full workflow installs applications with WinGet, links synchronized data to `C:\Apps` and `C:\Apps-data`, restores selected settings, applies Windows and Edge policies, and removes unwanted packages. A separate tweaks-and-removal workflow skips sync-root setup and general application installation.
 
 > [!WARNING]
 > This installer runs as administrator and has no automatic rollback. It disables automatic Windows Update, Edge SmartScreen, telemetry-related features, services, and scheduled tasks; HOME also creates placeholder MDM enrollment entries. Review [system tweaks](06-apply-system-tweaks.ps1), [Windows settings](settings/windows.ps1), [LGPO policy](resources/LGPO/global_policy_objects.txt), and [app removal](07-remove-apps.ps1) before running. Create a backup or restore point first.
@@ -12,13 +12,19 @@ Opinionated, interactive provisioning for personal and work Windows computers. T
 - An interactive UAC session
 - Administrator credentials
 
+The installer checks for a working WinGet command before selecting or running a workflow. On Windows 24H2 IoT, install it as follows if the guard reports that it is unavailable:
+
+1. Run `wsreset -i` to enable Microsoft Store.
+2. Open the [App Installer page in Microsoft Store](https://apps.microsoft.com/detail/9nblggh4nns1?hl=en-US&gl=EN).
+3. Install App Installer, then run this installer again.
+
 The full workflow additionally requires:
 
 - Internet access
 - One supported sync client already installed and synchronized
 - NTFS volumes supporting junctions and symbolic links
 
-The tweaks-and-removal workflow does not require a sync client and does not install applications. LGPO policy and Windows Terminal settings are applied only when LGPO and Windows Terminal are already installed; otherwise those operations log a warning and continue.
+The tweaks-and-removal workflow does not require a sync client or install the general application catalog. It automatically installs LGPO with WinGet when LGPO is missing, so internet access is required if LGPO is not already available. Windows Terminal settings are applied only during the full workflow, after sync-dependent setup and application installation; if Windows Terminal is unavailable, that operation logs a warning and continues.
 
 This workflow is interactive and is not intended for unattended or managed deployment.
 
@@ -99,8 +105,8 @@ The full workflow:
 2. Validate the sync root and required folders.
 3. Create junctions and restore private settings and Start-menu shortcuts.
 4. Install the configured WinGet packages.
-5. Restore sync-backed PowerToys settings.
-6. Apply sync-root-independent computer naming, registry and system settings, LGPO policy, Terminal settings, and power changes.
+5. Restore sync-backed PowerToys settings and apply Windows Terminal settings.
+6. Apply sync-root-independent computer naming, registry and system settings, LGPO policy, and power changes.
 7. Remove configured applications, AppX packages, and capabilities.
 
 The tweaks-and-removal workflow:
@@ -126,7 +132,7 @@ Full-workflow common packages include Visual Studio Code, foobar2000, PowerToys,
 - Package installs: [04-install-apps.ps1](04-install-apps.ps1)
 - App removal: [07-remove-apps.ps1](07-remove-apps.ps1)
 - Sync-independent system tweaks: [06-apply-system-tweaks.ps1](06-apply-system-tweaks.ps1)
-- Links, private settings, and shortcuts: [03-preconfigure-system.ps1](03-preconfigure-system.ps1) and [05-postconfigure-system.ps1](05-postconfigure-system.ps1)
+- Links, private settings, Terminal settings, and shortcuts: [03-preconfigure-system.ps1](03-preconfigure-system.ps1) and [05-postconfigure-system.ps1](05-postconfigure-system.ps1)
 - Registry and Windows behavior: [settings/windows.ps1](settings/windows.ps1)
 - Reusable setting operations: [lib/apply-settings.ps1](lib/apply-settings.ps1)
 - Junction/copy helper behavior: [lib/links-and-copy.ps1](lib/links-and-copy.ps1)

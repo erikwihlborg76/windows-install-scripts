@@ -13,12 +13,15 @@ $selectSyncRootScript = Join-Path $installDir "02-select-sync-root.ps1"
 . (Join-Path $libDir "admin.ps1")
 . (Join-Path $libDir "input.ps1")
 . (Join-Path $libDir "install-runner.ps1")
+. (Join-Path $libDir "winget.ps1")
 
 if (Restart-ScriptAsAdministrator -ScriptPath $PSCommandPath) {
     exit 0
 }
 
 try {
+    Assert-WinGet
+
     $resourcesDir = Join-Path $installDir "resources"
 
     if (-not (Test-Path -LiteralPath $resourcesDir -PathType Container)) {

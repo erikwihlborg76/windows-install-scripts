@@ -271,17 +271,7 @@ function Disable-Service {
     Write-Ok "Disabled service: $Name"
 }
 
-function Import-Lgpo {
-    param(
-        [Parameter(Mandatory)]
-        [string] $ResourcesDir
-    )
-
-    Write-Host ""
-    Write-Host "========== LGPO import =========="
-
-    $lgpoTxt = Join-Path $ResourcesDir "LGPO\global_policy_objects.txt"
-
+function Get-LgpoExecutablePath {
     $lgpoCommand = Get-Command -Name "LGPO.exe" -CommandType Application -ErrorAction SilentlyContinue |
         Select-Object -First 1
 
@@ -306,13 +296,75 @@ function Import-Lgpo {
         } |
         Select-Object -First 1
 
-    if (-not $lgpoExe) {
-        Write-Warn "LGPO.exe was not found. Install package Microsoft.SecurityComplianceToolkit.LGPO with WinGet."
-        return
+    if ($lgpoExe) {
+        return $lgpoExe
     }
+
+    $wingetPackageRoots = @(
+        if ($env:LOCALAPPDATA) {
+            Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Packages"
+        }
+
+        if ($env:ProgramFiles) {
+            Join-Path $env:ProgramFiles "WinGet\Packages"
+        }
+    )
+
+    foreach ($packageRoot in $wingetPackageRoots) {
+        if (-not (Test-Path -LiteralPath $packageRoot -PathType Container)) {
+            continue
+        }
+
+        $lgpoExe = Get-ChildItem `
+            -LiteralPath $packageRoot `
+            -Filter "LGPO.exe" `
+            -File `
+            -Recurse `
+            -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.FullName -like "*Microsoft.SecurityComplianceToolkit.LGPO*"
+            } |
+            Select-Object -ExpandProperty FullName -First 1
+
+        if ($lgpoExe) {
+            return $lgpoExe
+        }
+    }
+
+    return $null
+}
+
+function Import-Lgpo {
+    param(
+        [Parameter(Mandatory)]
+        [string] $ResourcesDir
+    )
+
+    Write-Host ""
+    Write-Host "========== LGPO import =========="
+
+    $lgpoTxt = Join-Path $ResourcesDir "LGPO\global_policy_objects.txt"
 
     if (-not (Test-Path -LiteralPath $lgpoTxt -PathType Leaf)) {
         Write-Warn "LGPO text file not found: $lgpoTxt"
+        return
+    }
+
+    $lgpoExe = Get-LgpoExecutablePath
+
+    if (-not $lgpoExe) {
+        Write-Info "LGPO.exe was not found. Installing it with WinGet..."
+        Assert-WinGet
+        Install-Pkg `
+            -Id "Microsoft.SecurityComplianceToolkit.LGPO" `
+            -Source "winget" `
+            -Name "LGPO"
+
+        $lgpoExe = Get-LgpoExecutablePath
+    }
+
+    if (-not $lgpoExe) {
+        Write-Warn "LGPO.exe was not found after the automatic WinGet installation attempt."
         return
     }
 

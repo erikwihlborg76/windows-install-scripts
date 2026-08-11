@@ -22,7 +22,7 @@ $LibDir = Join-Path $PSScriptRoot "lib"
 
 try {
     Initialize-InstallLog -Path $logPath -StartMessage "Starting installs for $Target"
-    Assert-WinGet -Message "winget was not found. Run the bootstrap script first, or install/update App Installer from Microsoft Store."
+    Assert-WinGet
 
     Write-Host ""
     Write-Host "========== Installing common apps =========="

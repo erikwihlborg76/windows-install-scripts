@@ -1,11 +1,39 @@
-function Assert-WinGet {
-    param(
-        [Parameter()]
-        [string] $Message = "winget was not found. Run the bootstrap/install script first, or install/update App Installer from Microsoft Store."
-    )
+function Get-WinGetInstallInstructions {
+    return @"
+WinGet is required but is not installed or could not be started.
 
-    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-        throw $Message
+On Windows 24H2 IoT:
+1. Run this command to enable Microsoft Store:
+   wsreset -i
+2. Open this page:
+   https://apps.microsoft.com/detail/9nblggh4nns1?hl=en-US&gl=EN
+3. Install App Installer, then run this installer again.
+"@
+}
+
+function Test-WinGetAvailable {
+    $wingetCommand = Get-Command `
+        -Name "winget.exe" `
+        -CommandType Application `
+        -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+
+    if (-not $wingetCommand) {
+        return $false
+    }
+
+    try {
+        & $wingetCommand.Source --version 1>$null 2>$null
+        return ($LASTEXITCODE -eq 0)
+    }
+    catch {
+        return $false
+    }
+}
+
+function Assert-WinGet {
+    if (-not (Test-WinGetAvailable)) {
+        throw (Get-WinGetInstallInstructions)
     }
 }
 

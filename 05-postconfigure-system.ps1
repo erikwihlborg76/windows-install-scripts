@@ -11,6 +11,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$ResourcesDir = Join-Path $PSScriptRoot "resources"
 $logPath = Join-Path $env:TEMP "05-postconfigure-system.log"
 
 # ============================================================
@@ -37,6 +38,7 @@ try {
     Write-Host "Log: `"$logPath`""
 
     Copy-PowerToysSettings -SyncRoot $SyncRoot
+    Copy-WindowsTerminalSettings -ResourcesDir $ResourcesDir
 
     Write-Host ""
     Write-Host "========== Summary =========="

@@ -24,6 +24,7 @@ $logPath = Join-Path $env:TEMP "06-apply-system-tweaks.log"
 $LibDir = Join-Path $PSScriptRoot "lib"
 . (Join-Path $LibDir "admin.ps1")
 . (Join-Path $LibDir "logging.ps1")
+. (Join-Path $LibDir "winget.ps1")
 . (Join-Path $LibDir "system-info.ps1")
 . (Join-Path $LibDir "apply-settings.ps1")
 . (Join-Path $PSScriptRoot "settings\windows.ps1")
@@ -95,8 +96,6 @@ try {
             Write-Info "Computer rename skipped."
         }
     }
-
-    Copy-WindowsTerminalSettings -ResourcesDir $ResourcesDir
 
     Set-WindowsSettings -Target $Target
     Import-Lgpo -ResourcesDir $ResourcesDir
