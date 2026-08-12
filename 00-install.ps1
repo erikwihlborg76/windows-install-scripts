@@ -67,7 +67,18 @@
 
         $launcher = $launchers[0].FullName
         $installerRoot = Split-Path -Parent $launcher
-        foreach ($requiredFile in @("01-run-install-steps.ps1", "02-select-sync-root.ps1")) {
+        foreach ($requiredFile in @(
+                "Install.ps1",
+                "config\Profiles.psd1",
+                "config\packages.common.json",
+                "config\packages.work.json",
+                "modules\SystemSetup\SystemSetup.psd1",
+                "modules\SystemSetup\SystemSetup.psm1",
+                "modules\SyncProfile\SyncProfile.psd1",
+                "modules\SyncProfile\SyncProfile.psm1",
+                "resources\LGPO\global_policy_objects.txt",
+                "resources\Windows Terminal\settings.json"
+            )) {
             $requiredPath = Join-Path $installerRoot $requiredFile
             if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
                 throw "The downloaded repository is missing $requiredFile."

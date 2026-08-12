@@ -15,6 +15,25 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Install PowerShell test tools
+        shell: powershell
+        run: |
+          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+          Install-Module Pester -Scope CurrentUser -Force -SkipPublisherCheck -MinimumVersion 5.0
+
       - name: Validate repository with Windows PowerShell 5.1
         shell: powershell
         run: .\tools\validate.ps1
+
+      - name: Run PSScriptAnalyzer
+        shell: powershell
+        run: |
+          $issues = Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error
+          if ($issues) {
+              $issues | Format-Table -AutoSize
+              throw "PSScriptAnalyzer found $($issues.Count) error(s)."
+          }
+
+      - name: Run Pester
+        shell: powershell
+        run: Invoke-Pester -Path .\tests -CI

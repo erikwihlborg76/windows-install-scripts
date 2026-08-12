@@ -1,44 +1,109 @@
 # Windows Install Scripts
 
-Opinionated, interactive provisioning for personal and work Windows computers. The full workflow installs applications with WinGet, links synchronized data to `C:\Apps` and `C:\Apps-data`, restores selected settings, applies Windows and Edge policies, and removes unwanted packages. A separate tweaks-and-removal workflow skips sync-root setup and general application installation.
+Opinionated, interactive provisioning for personal and work Windows computers. The installer can configure Windows by itself, add the repository's application set, and optionally restore links and application state from OneDrive or Dropbox.
 
 > [!WARNING]
-> This installer runs as administrator and has no automatic rollback. It disables automatic Windows Update, Edge SmartScreen, telemetry-related features, services, and scheduled tasks; HOME also creates placeholder MDM enrollment entries. Review [system tweaks](06-apply-system-tweaks.ps1), [Windows settings](settings/windows.ps1), [LGPO policy](resources/LGPO/global_policy_objects.txt), and [app removal](07-remove-apps.ps1) before running. Create a backup or restore point first.
+> This installer runs as administrator and has no automatic rollback. It disables automatic Windows Update, Edge SmartScreen, telemetry-related features, services, and scheduled tasks; HOME also creates placeholder MDM enrollment entries. Review [profile configuration](config/Profiles.psd1), [LGPO policy](resources/LGPO/global_policy_objects.txt), and the [SystemSetup module](modules/SystemSetup/SystemSetup.psm1) before running. Create a backup or restore point first.
 
 ## Requirements
 
 - Windows 10, Windows 11, or Windows Server 2025
-- Windows PowerShell 5.1 and WinGet/App Installer
+- Windows PowerShell 5.1
+- WinGet/App Installer
 - An interactive UAC session
 - Administrator credentials
 
-The installer checks for a working WinGet command before selecting or running a workflow. On Windows 24H2 IoT, install it as follows if the guard reports that it is unavailable:
+The installer verifies that `winget.exe` can run before it presents or applies a setup plan. On Windows 24H2 IoT, install it as follows if the guard reports that it is unavailable:
 
 1. Run `wsreset -i` to enable Microsoft Store.
 2. Open the [App Installer page in Microsoft Store](https://apps.microsoft.com/detail/9nblggh4nns1?hl=en-US&gl=EN).
 3. Install App Installer, then run this installer again.
 
-The full workflow additionally requires:
+Application installation and automatic LGPO installation require internet access.
 
-- Internet access
-- One supported sync client already installed and synchronized
-- NTFS volumes supporting junctions and symbolic links
+## Presets and profiles
 
-The tweaks-and-removal workflow does not require a sync client or install the general application catalog. It automatically installs LGPO with WinGet when LGPO is missing, so internet access is required if LGPO is not already available. Windows Terminal settings are applied only during the full workflow, after sync-dependent setup and application installation; if Windows Terminal is unavailable, that operation logs a warning and continues.
+The workflow has two independent dimensions:
 
-This workflow is interactive and is not intended for unattended or managed deployment.
+- **Preset** controls whether applications and sync-backed state are included.
+- **Profile** controls HOME/WORK differences.
+
+| Preset | Install applications | Use sync-backed files | Configure Windows and remove apps |
+| --- | ---: | ---: | ---: |
+| `FULL` | Yes | Yes | Yes |
+| `SYSTEM_AND_APPS` | Yes | No | Yes |
+| `SYSTEM_ONLY` | No | No | Yes |
+
+| Profile behavior | HOME | WORK |
+| --- | ---: | ---: |
+| Computer rename prompt | Yes | No |
+| Placeholder MDM entries | Yes | No |
+| Disable NTFS last-access updates | Yes | No |
+| Install Node.js LTS when applications are enabled | No | Yes |
+| Explicitly remove Teams | Yes | No |
+
+The sync-independent system module contains no OneDrive, Dropbox, `SyncRoot`, or `Apps-data` dependencies. The sync module owns all provider discovery, filesystem links, and private application state.
+
+## Run
+
+Interactive local checkout:
+
+```powershell
+.\00-run-install-manual.cmd
+```
+
+The entry point also accepts explicit parameters:
+
+```powershell
+.\Install.ps1 -Profile HOME -Preset FULL -SyncProvider Dropbox
+.\Install.ps1 -Profile WORK -Preset SYSTEM_AND_APPS
+.\Install.ps1 -Profile HOME -Preset SYSTEM_ONLY
+```
+
+Use `-SyncRoot` to override provider discovery for the FULL preset. `-SkipConfirmation` and `-NoPause` are available for controlled automation, but the workflow is primarily intended for interactive use.
+
+Remote bootstrap:
+
+```powershell
+irm https://raw.githubusercontent.com/erikwihlborg76/windows-install-scripts/main/00-install.ps1 | iex
+```
+
+For an inspect-first bootstrap:
+
+```powershell
+$url = 'https://raw.githubusercontent.com/erikwihlborg76/windows-install-scripts/main/00-install.ps1'
+irm $url -OutFile "$env:TEMP\windows-install.ps1"
+notepad "$env:TEMP\windows-install.ps1"
+& "$env:TEMP\windows-install.ps1"
+```
+
+The bootstrap supports `INSTALL_REPOSITORY`, `INSTALL_REF`, and optional `INSTALL_ARCHIVE_SHA256` environment-variable overrides.
+
+## Execution flow
+
+The installer runs in one Windows PowerShell process:
+
+1. Elevate and verify WinGet.
+2. Resolve the preset, HOME/WORK profile, and optional sync provider.
+3. For FULL, create sync-backed links before applications can create conflicting folders.
+4. For FULL or SYSTEM_AND_APPS, install the WinGet manifests and apply repository-provided Windows Terminal settings.
+5. For FULL, restore PowerToys and other sync-backed application state.
+6. Apply registry settings, service and scheduled-task configuration, LGPO policy, and power settings.
+7. Remove configured WinGet, AppX, provisioned AppX, and Windows capability entries.
+
+A single transcript records the workflow under `%TEMP%\windows-install-<timestamp>.log`.
 
 ## Sync layout
 
-The selected sync root comes from:
+FULL resolves the selected sync root from:
 
-| Client | Location source |
+| Provider | Location source |
 | --- | --- |
 | OneDrive Business | `OneDriveCommercial` |
 | OneDrive | `OneDriveConsumer` |
 | Dropbox | `%APPDATA%\Dropbox\info.json` |
 
-Dropbox is discovered from its account metadata; no custom environment variable is required. If Dropbox has multiple accounts, the installer selects the only account containing both required folders and stops if the result is missing or ambiguous. The sync root must contain:
+Dropbox discovery handles multiple accounts by selecting the only account containing both required folders. The sync root must contain:
 
 ```text
 <sync-root>\
@@ -53,7 +118,7 @@ C:\Apps      -> <sync-root>\Apps
 C:\Apps-data -> <sync-root>\Apps-data
 ```
 
-Optional private data can be stored as follows:
+Optional sync-backed state can use:
 
 ```text
 Apps-data\
@@ -68,91 +133,49 @@ Apps-data\
 └── Shortcuts\
 ```
 
-Everything under `C:\Apps-data\Shortcuts` is copied to the user's Start menu. Keep account data, exported application state, geographic settings, and other private files under `Apps-data`, not in this repository.
+Everything under `Apps-data\Shortcuts` is copied to the current user's Start menu. Personal and private data should remain under `Apps-data`, not in this repository.
 
-## Run
+## Repository structure
 
-Local checkout:
-
-```powershell
-.\00-run-install-manual.cmd
+```text
+Install.ps1                         Single-process orchestrator
+config\Profiles.psd1                Common and HOME/WORK configuration
+config\packages.common.json        Common WinGet package manifest
+config\packages.work.json          WORK package additions
+modules\SystemSetup\               Sync-independent Windows operations
+modules\SyncProfile\               Sync discovery, links, and private state
+resources\LGPO\                    Local Group Policy configuration
+resources\Windows Terminal\        Repository-provided Terminal settings
+tests\                              Pester behavior and boundary tests
+tools\validate.ps1                 Syntax, data, structure, and boundary checks
 ```
 
-The launcher prompts for either the full workflow or **Tweaks and app removal only**. The latter never selects a sync root and runs only `06-apply-system-tweaks.ps1` followed by `07-remove-apps.ps1`.
-
-Remote bootstrap:
-
-```powershell
-irm https://raw.githubusercontent.com/erikwihlborg76/windows-install-scripts/main/00-install.ps1 | iex
-```
-
-For the safer inspect-first approach:
-
-```powershell
-$url = 'https://raw.githubusercontent.com/erikwihlborg76/windows-install-scripts/main/00-install.ps1'
-irm $url -OutFile "$env:TEMP\windows-install.ps1"
-notepad "$env:TEMP\windows-install.ps1"
-& "$env:TEMP\windows-install.ps1"
-```
-
-The bootstrap supports `INSTALL_REPOSITORY`, `INSTALL_REF`, and optional `INSTALL_ARCHIVE_SHA256` environment-variable overrides.
-
-## Flow
-
-The full workflow:
-
-1. Select HOME or WORK and the sync client.
-2. Validate the sync root and required folders.
-3. Create junctions and restore private settings and Start-menu shortcuts.
-4. Install the configured WinGet packages.
-5. Restore sync-backed PowerToys settings and apply Windows Terminal settings.
-6. Apply sync-root-independent computer naming, registry and system settings, LGPO policy, and power changes.
-7. Remove configured applications, AppX packages, and capabilities.
-
-The tweaks-and-removal workflow:
-
-1. Select HOME or WORK without selecting or validating a sync root.
-2. Apply the sync-root-independent tweaks from step 6 above.
-3. Run the same configured app, AppX, and capability removals.
-
-### Target differences
-
-| Behavior | HOME | WORK |
-| --- | ---: | ---: |
-| Computer rename prompt | Yes | No |
-| Placeholder MDM entries | Yes | No |
-| Disable NTFS last-access updates | Yes | No |
-| Install Node.js LTS (full workflow only) | No | Yes |
-| Explicitly remove Teams | Yes | No |
-
-Full-workflow common packages include Visual Studio Code, foobar2000, PowerToys, 1Password, Total Commander, X-Mouse Button Control, Paint.NET, Windows Terminal, PowerShell 7, Notion, Git, and LGPO.
+`SystemSetup` intentionally uses built-in PowerShell providers and modules for registry values, services, scheduled tasks, DISM capabilities, and AppX packages. Custom logic remains only where the repository needs specific behavior, such as safe reparse-point replacement, Dropbox account resolution, WinGet manifests, and LGPO discovery.
 
 ## Customize
 
-- Package installs: [04-install-apps.ps1](04-install-apps.ps1)
-- App removal: [07-remove-apps.ps1](07-remove-apps.ps1)
-- Sync-independent system tweaks: [06-apply-system-tweaks.ps1](06-apply-system-tweaks.ps1)
-- Links, private settings, Terminal settings, and shortcuts: [03-preconfigure-system.ps1](03-preconfigure-system.ps1) and [05-postconfigure-system.ps1](05-postconfigure-system.ps1)
-- Registry and Windows behavior: [settings/windows.ps1](settings/windows.ps1)
-- Reusable setting operations: [lib/apply-settings.ps1](lib/apply-settings.ps1)
-- Junction/copy helper behavior: [lib/links-and-copy.ps1](lib/links-and-copy.ps1)
+- Common and profile-specific behavior: [config/Profiles.psd1](config/Profiles.psd1)
+- Common applications: [config/packages.common.json](config/packages.common.json)
+- WORK application additions: [config/packages.work.json](config/packages.work.json)
+- Windows and app removal behavior: [modules/SystemSetup/SystemSetup.psm1](modules/SystemSetup/SystemSetup.psm1)
+- Sync-backed links and state: [modules/SyncProfile/SyncProfile.psm1](modules/SyncProfile/SyncProfile.psm1)
 - LGPO values: [resources/LGPO/global_policy_objects.txt](resources/LGPO/global_policy_objects.txt)
-- Terminal settings: [resources/Windows Terminal/settings.json](resources/Windows%20Terminal/settings.json)
+- Windows Terminal settings: [resources/Windows Terminal/settings.json](resources/Windows%20Terminal/settings.json)
 
-Run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate.ps1` after making changes.
+The `AllowTelemetry` policy is owned by the LGPO resource rather than duplicated in the registry configuration.
 
-Reusable logic belongs in `lib`, public static configuration in `resources`, and personal configuration under `Apps-data`.
+## Validate and test
 
-## Logs and behavior
+Run the local validator with Windows PowerShell 5.1:
 
-Logs are written under `%TEMP%`:
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate.ps1
+```
 
-- `04-install-apps_winget.log`
-- `06-apply-system-tweaks.log`
-- `05-postconfigure-system.log`
-- `07-remove-apps.log`
-- `LGPO.stdout.log` and `LGPO.stderr.log`
+Run Pester tests when Pester is installed:
 
-Fatal errors stop the workflow. System-tweak, synced-setting, and removal warnings are logged but do not block later steps. The installer is mostly rerunnable, but it is not transactional; restoring removed policies, services, capabilities, or applications is manual.
+```powershell
+Invoke-Pester -Path .\tests
+```
 
-The local validator and GitHub Actions check required files, PowerShell 5.1 syntax, and JSON resources. No software license has been selected yet.
+CI runs the validator, PSScriptAnalyzer, and Pester. The installer is rerunnable but not transactional; restoring removed policies, services, capabilities, or applications is manual.
