@@ -147,10 +147,11 @@ try {
         }
     }
 
-    $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $timestamp = Get-Date -Format "yyyyMMdd-HHmmss-fff"
     $transcriptPath = Join-Path $env:TEMP "windows-install-$timestamp.log"
     $transcriptStarted = $false
-    $setupSucceeded = $false
+    $setupWarnings = @()
+    $setupExitCode = 0
 
     try {
         Start-Transcript -Path $transcriptPath -Force -ErrorAction Stop | Out-Null
@@ -160,33 +161,55 @@ try {
         Write-Host "Log: $transcriptPath"
 
         if ($useSyncProfile) {
-            Initialize-SyncedProfile -SyncRoot $resolvedSyncRoot
+            Initialize-SyncedProfile -SyncRoot $resolvedSyncRoot -WarningVariable +setupWarnings
         }
 
         if ($installApps) {
             Install-Applications `
                 -ConfigRoot $configRoot `
                 -CommonConfiguration $commonConfiguration `
-                -ProfileConfiguration $profileConfiguration
+                -ProfileConfiguration $profileConfiguration `
+                -WarningVariable +setupWarnings
 
-            Set-RepositoryApplicationDefaults -ResourcesRoot $resourcesRoot
+            Set-RepositoryApplicationDefaults -ResourcesRoot $resourcesRoot -WarningVariable +setupWarnings
         }
 
         if ($useSyncProfile) {
-            Restore-SyncedApplicationState -SyncRoot $resolvedSyncRoot
+            Restore-SyncedApplicationState -SyncRoot $resolvedSyncRoot -WarningVariable +setupWarnings
         }
 
         Invoke-SystemConfiguration `
             -Profile $Profile `
             -CommonConfiguration $commonConfiguration `
             -ProfileConfiguration $profileConfiguration `
-            -ResourcesRoot $resourcesRoot
+            -ResourcesRoot $resourcesRoot `
+            -WarningVariable +setupWarnings
 
         Remove-UnwantedSoftware `
             -CommonConfiguration $commonConfiguration `
-            -ProfileConfiguration $profileConfiguration
+            -ProfileConfiguration $profileConfiguration `
+            -WarningVariable +setupWarnings
 
-        $setupSucceeded = $true
+        Write-Host ""
+        if ($setupWarnings.Count -gt 0) {
+            $setupExitCode = 2
+            Write-Host "========== Partially complete =========="
+            Write-Host "[WARNING] Setup finished with $($setupWarnings.Count) warning(s):"
+            foreach ($setupWarning in $setupWarnings) {
+                Write-Host " - $setupWarning"
+            }
+        }
+        else {
+            Write-Host "========== Complete =========="
+            Write-Host "[OK] Setup completed."
+        }
+        Write-Host "Log: $transcriptPath"
+        Write-Host "Check optional updates in Windows Update."
+    }
+    catch {
+        # Record the failure before finally closes the transcript.
+        Write-Host "[ERROR] $($_.Exception.Message)"
+        throw
     }
     finally {
         if ($transcriptStarted) {
@@ -195,22 +218,18 @@ try {
             }
             catch {
                 Write-Warning "Could not stop the PowerShell transcript cleanly."
+                $setupExitCode = 2
             }
         }
-    }
-
-    if ($setupSucceeded) {
-        Write-Host ""
-        Write-Host "========== Complete =========="
-        Write-Host "[OK] Setup completed."
-        Write-Host "Log: $transcriptPath"
-        Write-Host "Check optional updates in Windows Update."
     }
 }
 catch {
     Write-Host ""
     Write-Host "[ERROR] Setup stopped."
     Write-Host $_.Exception.Message
+    if ($transcriptPath) {
+        Write-Host "Log: $transcriptPath"
+    }
 
     if (-not $NoPause) {
         Write-Host "Press Enter to exit."
@@ -224,4 +243,4 @@ if (-not $NoPause) {
     [void] [Console]::ReadLine()
 }
 
-exit 0
+exit $setupExitCode

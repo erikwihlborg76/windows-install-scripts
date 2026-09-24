@@ -18,36 +18,63 @@ function Restart-SetupAsAdministrator {
         return $null
     }
 
-    $arguments = @(
-        "-NoLogo"
-        "-NoProfile"
-        "-ExecutionPolicy"
-        "Bypass"
-        "-File"
-        ('"{0}"' -f $ScriptPath.Replace('"', '\"'))
-    )
+    # Encode the invocation so spaces, quotes, and trailing path separators
+    # survive the Windows command-line parser without custom escaping rules.
+    $invocation = "& '{0}'" -f $ScriptPath.Replace("'", "''")
 
     foreach ($parameter in ($BoundParameters.GetEnumerator() | Sort-Object Key)) {
         if ($parameter.Value -is [Management.Automation.SwitchParameter]) {
             if ($parameter.Value.IsPresent) {
-                $arguments += "-$($parameter.Key)"
+                $invocation += " -$($parameter.Key)"
             }
             continue
         }
 
-        $arguments += "-$($parameter.Key)"
         $value = [string] $parameter.Value
-        $arguments += ('"{0}"' -f $value.Replace('"', '\"'))
+        $invocation += " -{0} '{1}'" -f $parameter.Key, $value.Replace("'", "''")
     }
+
+    $invocation += '; exit $LASTEXITCODE'
+    $encodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($invocation))
 
     $process = Start-Process `
         -FilePath "powershell.exe" `
-        -ArgumentList ($arguments -join " ") `
+        -ArgumentList "-NoLogo -NoProfile -ExecutionPolicy Bypass -EncodedCommand $encodedCommand" `
         -Verb RunAs `
         -Wait `
         -PassThru
 
     return [int] $process.ExitCode
+}
+
+function Invoke-SetupNativeCommand {
+    param(
+        [Parameter(Mandatory)]
+        [string] $FilePath,
+
+        [Parameter()]
+        [string[]] $Arguments = @()
+    )
+
+    $command = Get-Command -Name $FilePath -CommandType Application -ErrorAction Stop |
+        Select-Object -First 1
+
+    # Windows PowerShell 5.1 wraps redirected stderr in NativeCommandError
+    # records. Diagnostics on stderr do not determine a native tool's success.
+    $ErrorActionPreference = "Continue"
+    $PSNativeCommandUseErrorActionPreference = $false
+    # Native commands update the global automatic variable, even in a module.
+    $global:LASTEXITCODE = $null
+    $output = @(& $command.Source @Arguments 2>&1)
+    $exitCode = $global:LASTEXITCODE
+    if ($null -eq $exitCode) {
+        throw "Could not start native command '$FilePath': $($output -join [Environment]::NewLine)"
+    }
+
+    return [pscustomobject] @{
+        ExitCode = [int] $exitCode
+        Output = @($output | ForEach-Object { $_.ToString() })
+    }
 }
 
 function Get-WinGetInstallInstructions {
@@ -75,8 +102,8 @@ function Test-WinGetAvailable {
     }
 
     try {
-        & $wingetCommand.Source --version 1>$null 2>$null
-        return ($LASTEXITCODE -eq 0)
+        $result = Invoke-SetupNativeCommand -FilePath $wingetCommand.Source -Arguments @("--version")
+        return ($result.ExitCode -eq 0)
     }
     catch {
         return $false
@@ -105,23 +132,18 @@ function Install-WinGetManifest {
     Write-Host ""
     Write-Host "Importing WinGet packages from: $ManifestPath"
 
-    $output = @(
-        & winget.exe import `
-            --import-file $ManifestPath `
-            --ignore-versions `
-            --accept-package-agreements `
-            --accept-source-agreements `
-            --disable-interactivity `
-            2>&1
+    $result = Invoke-SetupNativeCommand -FilePath "winget.exe" -Arguments @(
+        "import", "--import-file", $ManifestPath,
+        "--ignore-versions", "--accept-package-agreements",
+        "--accept-source-agreements", "--disable-interactivity"
     )
-    $exitCode = $LASTEXITCODE
 
-    foreach ($line in $output) {
-        Write-Host $line.ToString()
+    foreach ($line in $result.Output) {
+        Write-Host $line
     }
 
-    if ($exitCode -ne 0) {
-        throw "WinGet package import failed with exit code ${exitCode}: $ManifestPath"
+    if ($result.ExitCode -ne 0) {
+        throw "WinGet package import failed with exit code $($result.ExitCode): $ManifestPath"
     }
 
     Write-Host "[OK] WinGet package import completed."
@@ -130,8 +152,11 @@ function Install-WinGetManifest {
 function Test-WindowsActivation {
     $slmgr = Join-Path $env:WINDIR "System32\slmgr.vbs"
 
-    & cscript.exe //Nologo $slmgr /xpr
-    if ($LASTEXITCODE -ne 0) {
+    $result = Invoke-SetupNativeCommand -FilePath "cscript.exe" -Arguments @("//Nologo", $slmgr, "/xpr")
+    foreach ($line in $result.Output) {
+        Write-Host $line
+    }
+    if ($result.ExitCode -ne 0) {
         Write-Warning "Could not check Windows activation status."
         return
     }
@@ -164,12 +189,20 @@ function Install-Applications {
     $manifestNames = @($CommonConfiguration.PackageManifest) +
         @($ProfileConfiguration.AdditionalPackageManifests)
 
-    foreach ($manifestName in $manifestNames) {
-        if ([string]::IsNullOrWhiteSpace($manifestName)) {
-            continue
+    $manifestPaths = foreach ($manifestName in $manifestNames) {
+        if ($manifestName -isnot [string] -or [string]::IsNullOrWhiteSpace($manifestName)) {
+            throw "Invalid WinGet package manifest name: '$manifestName'. Expected a nonempty string."
         }
 
-        Install-WinGetManifest -ManifestPath (Join-Path $ConfigRoot $manifestName)
+        $manifestPath = Join-Path $ConfigRoot $manifestName
+        if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+            throw "WinGet package manifest was not found: $manifestPath"
+        }
+        $manifestPath
+    }
+
+    foreach ($manifestPath in $manifestPaths) {
+        Install-WinGetManifest -ManifestPath $manifestPath
     }
 
     Write-Host ""
@@ -273,23 +306,24 @@ function Set-ConfiguredRegistryValues {
 
     foreach ($setting in $Settings) {
         try {
-            New-Item `
-                -Path $setting.Path `
+            if (-not (Test-Path -LiteralPath $setting.Path -ErrorAction Stop)) {
+                New-Item -Path $setting.Path -Force -ErrorAction Stop | Out-Null
+            }
+
+            $valueName = if ([string]::IsNullOrEmpty([string] $setting.Name)) {
+                "(Default)"
+            }
+            else {
+                $setting.Name
+            }
+            New-ItemProperty `
+                -LiteralPath $setting.Path `
+                -Name $valueName `
+                -PropertyType $setting.Type `
+                -Value $setting.Value `
                 -Force `
                 -ErrorAction Stop |
                 Out-Null
-
-            $registryKey = Get-Item -LiteralPath $setting.Path -ErrorAction Stop
-            $valueKind = [Enum]::Parse(
-                [Microsoft.Win32.RegistryValueKind],
-                [string] $setting.Type,
-                $true
-            )
-            $registryKey.SetValue(
-                [string] $setting.Name,
-                $setting.Value,
-                $valueKind
-            )
         }
         catch {
             $valueName = if ([string]::IsNullOrEmpty([string] $setting.Name)) {
@@ -312,8 +346,16 @@ function Disable-ConfiguredServices {
         [string[]] $Names
     )
 
+    try {
+        $services = @(Get-Service -ErrorAction Stop)
+    }
+    catch {
+        Write-Warning "Failed to query services: $($_.Exception.Message)"
+        return
+    }
+
     foreach ($name in $Names) {
-        $service = Get-Service -Name $name -ErrorAction SilentlyContinue
+        $service = $services | Where-Object { $_.Name -eq $name }
         if (-not $service) {
             Write-Host "[SKIP] Service not found: $name"
             continue
@@ -336,11 +378,18 @@ function Disable-ConfiguredScheduledTasks {
         [object[]] $Tasks
     )
 
+    try {
+        $scheduledTasks = @(Get-ScheduledTask -ErrorAction Stop)
+    }
+    catch {
+        Write-Warning "Failed to query scheduled tasks: $($_.Exception.Message)"
+        return
+    }
+
     foreach ($taskDefinition in $Tasks) {
-        $task = Get-ScheduledTask `
-            -TaskPath $taskDefinition.TaskPath `
-            -TaskName $taskDefinition.TaskName `
-            -ErrorAction SilentlyContinue
+        $task = $scheduledTasks | Where-Object {
+            $_.TaskPath -eq $taskDefinition.TaskPath -and $_.TaskName -eq $taskDefinition.TaskName
+        }
 
         $qualifiedName = "$($taskDefinition.TaskPath)$($taskDefinition.TaskName)"
         if (-not $task) {
@@ -384,8 +433,13 @@ function Set-ComputerBootDescription {
     Write-Host "Detected operating system: $windowsName"
     Write-Host "Setting boot menu entry to: `"$description`""
 
-    & bcdedit.exe /set "{current}" description "$description"
-    if ($LASTEXITCODE -ne 0) {
+    $result = Invoke-SetupNativeCommand -FilePath "bcdedit.exe" -Arguments @(
+        "/set", "{current}", "description", $description
+    )
+    foreach ($line in $result.Output) {
+        Write-Host $line
+    }
+    if ($result.ExitCode -ne 0) {
         Write-Warning "Failed to update the boot entry description with BCDEdit."
         return
     }
@@ -431,12 +485,13 @@ function Disable-NetworkAdapterWake {
         return
     }
 
+    $result = Invoke-SetupNativeCommand -FilePath "powercfg.exe" -Arguments @("-devicequery", "wake_armed")
     $wakeArmedDevices = @(
-        powercfg.exe -devicequery wake_armed 2>$null |
+        $result.Output |
             ForEach-Object { $_.Trim() } |
             Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and $_ -ine "NONE" }
     )
-    if ($LASTEXITCODE -ne 0) {
+    if ($result.ExitCode -ne 0) {
         Write-Warning "Failed to query wake-armed devices."
         return
     }
@@ -452,8 +507,8 @@ function Disable-NetworkAdapterWake {
 
     $disabledCount = 0
     foreach ($device in $networkWakeDevices) {
-        & powercfg.exe -devicedisablewake "$device" 1>$null 2>$null
-        if ($LASTEXITCODE -ne 0) {
+        $result = Invoke-SetupNativeCommand -FilePath "powercfg.exe" -Arguments @("-devicedisablewake", $device)
+        if ($result.ExitCode -ne 0) {
             Write-Warning "Failed to disable network wake on '$device'."
             continue
         }
@@ -470,8 +525,10 @@ function Disable-WakeTimers {
     Write-Host "========== Wake timers =========="
 
     foreach ($powerMode in @("AC", "DC")) {
-        & powercfg.exe "/SET${powerMode}VALUEINDEX" SCHEME_CURRENT SUB_SLEEP RTCWAKE 0 1>$null 2>$null
-        if ($LASTEXITCODE -ne 0) {
+        $result = Invoke-SetupNativeCommand -FilePath "powercfg.exe" -Arguments @(
+            "/SET${powerMode}VALUEINDEX", "SCHEME_CURRENT", "SUB_SLEEP", "RTCWAKE", "0"
+        )
+        if ($result.ExitCode -ne 0) {
             Write-Warning "Failed to disable $powerMode wake timers."
         }
         else {
@@ -479,8 +536,8 @@ function Disable-WakeTimers {
         }
     }
 
-    & powercfg.exe /SETACTIVE SCHEME_CURRENT 1>$null 2>$null
-    if ($LASTEXITCODE -ne 0) {
+    $result = Invoke-SetupNativeCommand -FilePath "powercfg.exe" -Arguments @("/SETACTIVE", "SCHEME_CURRENT")
+    if ($result.ExitCode -ne 0) {
         Write-Warning "Failed to re-apply the current power scheme."
     }
     else {
@@ -551,26 +608,19 @@ function Install-LgpoIfMissing {
     Write-Host "LGPO.exe was not found. Installing it with WinGet..."
     Assert-WinGet
 
-    $output = @(
-        & winget.exe install `
-            --id "Microsoft.SecurityComplianceToolkit.LGPO" `
-            --source "winget" `
-            --exact `
-            --silent `
-            --accept-package-agreements `
-            --accept-source-agreements `
-            --disable-interactivity `
-            2>&1
+    $result = Invoke-SetupNativeCommand -FilePath "winget.exe" -Arguments @(
+        "install", "--id", "Microsoft.SecurityComplianceToolkit.LGPO", "--source", "winget",
+        "--exact", "--silent", "--accept-package-agreements",
+        "--accept-source-agreements", "--disable-interactivity"
     )
-    $installExitCode = $LASTEXITCODE
 
-    foreach ($line in $output) {
-        Write-Host $line.ToString()
+    foreach ($line in $result.Output) {
+        Write-Host $line
     }
 
     $lgpoExecutable = Get-LgpoExecutablePath
     if (-not $lgpoExecutable) {
-        throw "LGPO.exe was not found after the automatic WinGet installation attempt (exit code $installExitCode)."
+        throw "LGPO.exe was not found after the automatic WinGet installation attempt (exit code $($result.ExitCode))."
     }
 
     return $lgpoExecutable
@@ -591,15 +641,14 @@ function Import-LgpoPolicy {
     }
 
     $lgpoExecutable = Install-LgpoIfMissing
-    $output = @(& $lgpoExecutable /t $policyPath 2>&1)
-    $exitCode = $LASTEXITCODE
+    $result = Invoke-SetupNativeCommand -FilePath $lgpoExecutable -Arguments @("/t", $policyPath)
 
-    foreach ($line in $output) {
-        Write-Host $line.ToString()
+    foreach ($line in $result.Output) {
+        Write-Host $line
     }
 
-    if ($exitCode -ne 0) {
-        throw "LGPO policy import failed with exit code $exitCode."
+    if ($result.ExitCode -ne 0) {
+        throw "LGPO policy import failed with exit code $($result.ExitCode)."
     }
 
     Write-Host "[OK] Local Group Policy import completed."
@@ -652,8 +701,13 @@ function Invoke-SystemConfiguration {
     Disable-SystemSounds
 
     if ($ProfileConfiguration.DisableLastAccess) {
-        & fsutil.exe behavior set DisableLastAccess 1
-        if ($LASTEXITCODE -ne 0) {
+        $result = Invoke-SetupNativeCommand -FilePath "fsutil.exe" -Arguments @(
+            "behavior", "set", "DisableLastAccess", "1"
+        )
+        foreach ($line in $result.Output) {
+            Write-Host $line
+        }
+        if ($result.ExitCode -ne 0) {
             Write-Warning "Failed to disable last-access timestamp updates."
         }
         else {
@@ -676,10 +730,16 @@ function Remove-AppxPattern {
     )
 
     $found = $false
+    $queryFailed = $false
 
-    $installedPackages = @(
-        Get-AppxPackage -AllUsers -Name $Pattern -ErrorAction SilentlyContinue
-    )
+    $installedPackages = @()
+    try {
+        $installedPackages = @(Get-AppxPackage -AllUsers -Name $Pattern -ErrorAction Stop)
+    }
+    catch {
+        $queryFailed = $true
+        Write-Warning "Failed to query installed AppX packages for '$Label': $($_.Exception.Message)"
+    }
     foreach ($package in $installedPackages) {
         $found = $true
         try {
@@ -694,10 +754,17 @@ function Remove-AppxPattern {
         }
     }
 
-    $provisionedPackages = @(
-        Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue |
-            Where-Object { $_.DisplayName -like $Pattern }
-    )
+    $provisionedPackages = @()
+    try {
+        $provisionedPackages = @(
+            Get-AppxProvisionedPackage -Online -ErrorAction Stop |
+                Where-Object { $_.DisplayName -like $Pattern }
+        )
+    }
+    catch {
+        $queryFailed = $true
+        Write-Warning "Failed to query provisioned AppX packages for '$Label': $($_.Exception.Message)"
+    }
     foreach ($package in $provisionedPackages) {
         $found = $true
         try {
@@ -713,7 +780,7 @@ function Remove-AppxPattern {
         }
     }
 
-    if (-not $found) {
+    if (-not $found -and -not $queryFailed) {
         Write-Host "[SKIP] AppX package not found: $Label"
     }
 }
@@ -725,22 +792,22 @@ function Uninstall-WinGetName {
     )
 
     Write-Host "Removing WinGet package by name: $Name"
-    $output = @(
-        & winget.exe uninstall `
-            --name $Name `
-            --silent `
-            --accept-source-agreements `
-            --disable-interactivity `
-            2>&1
+    $result = Invoke-SetupNativeCommand -FilePath "winget.exe" -Arguments @(
+        "uninstall", "--name", $Name, "--exact", "--silent",
+        "--accept-source-agreements", "--disable-interactivity"
     )
-    $exitCode = $LASTEXITCODE
 
-    foreach ($line in $output) {
-        Write-Host $line.ToString()
+    foreach ($line in $result.Output) {
+        Write-Host $line
     }
 
-    if ($exitCode -ne 0) {
-        Write-Warning "Could not uninstall '$Name' with WinGet; exit code $exitCode."
+    # APPINSTALLER_CLI_ERROR_NO_APPLICATIONS_FOUND (0x8A150014).
+    # https://github.com/microsoft/winget-cli/blob/master/src/AppInstallerSharedLib/Public/AppInstallerErrors.h
+    if ($result.ExitCode -eq -1978335212) {
+        Write-Host "[SKIP] WinGet package is not installed: $Name"
+    }
+    elseif ($result.ExitCode -ne 0) {
+        Write-Warning "Could not uninstall '$Name' with WinGet; exit code $($result.ExitCode)."
     }
     else {
         Write-Host "[OK] WinGet uninstall completed: $Name"

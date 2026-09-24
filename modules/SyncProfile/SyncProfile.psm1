@@ -1,8 +1,14 @@
 function Resolve-DropboxRoot {
-    $infoPath = Join-Path $env:APPDATA "Dropbox\info.json"
+    $infoPaths = @(
+        Join-Path $env:APPDATA "Dropbox\info.json"
+        Join-Path $env:LOCALAPPDATA "Dropbox\info.json"
+    )
+    $infoPath = $infoPaths | Where-Object {
+        Test-Path -LiteralPath $_ -PathType Leaf
+    } | Select-Object -First 1
 
-    if (-not (Test-Path -LiteralPath $infoPath -PathType Leaf)) {
-        throw "Dropbox account information was not found at '$infoPath'. Install Dropbox and sign in before running this installer."
+    if (-not $infoPath) {
+        throw "Dropbox account information was not found at either '$($infoPaths -join "' or '")'. Install Dropbox and sign in before running this installer."
     }
 
     try {
@@ -176,7 +182,7 @@ function Set-ProfileLink {
         if ($Required) {
             throw "Required link target does not exist: '$TargetPath'"
         }
-        Write-Warning "Optional link target is missing; skipping '$LinkPath' -> '$TargetPath'."
+        Write-Host "[SKIP] Optional link target is missing: '$LinkPath' -> '$TargetPath'."
         return
     }
 
@@ -244,7 +250,10 @@ function Copy-DirectoryContents {
 
     New-Item -ItemType Directory -Path $Destination -Force -ErrorAction Stop | Out-Null
 
-    & robocopy.exe $Source $Destination /E /NFL /NDL /NJH /NJS /NP | Out-Null
+    # Robocopy uses nonzero success codes and otherwise retries for days by default.
+    # Keep its output in the transcript so failed copies remain diagnosable.
+    $PSNativeCommandUseErrorActionPreference = $false
+    & robocopy.exe $Source $Destination /E /R:2 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Host
     $exitCode = $LASTEXITCODE
     if ($exitCode -ge 8) {
         Write-Warning "$Description copy failed with Robocopy exit code ${exitCode}: '$Source' -> '$Destination'"
@@ -252,6 +261,57 @@ function Copy-DirectoryContents {
     }
 
     Write-Host "[OK] Copied $Description."
+}
+
+function Set-SshIncludeConfiguration {
+    param(
+        [Parameter(Mandatory)]
+        [string] $UserProfile
+    )
+
+    $sshDirectory = Join-Path $UserProfile ".ssh"
+    $sshConfig = Join-Path $sshDirectory "config"
+    $includeDirective = "Include c:/Apps-data/SSH/config"
+
+    New-Item `
+        -ItemType Directory `
+        -Path $sshDirectory `
+        -Force `
+        -ErrorAction Stop |
+        Out-Null
+
+    $content = if (Test-Path -LiteralPath $sshConfig -PathType Leaf) {
+        [IO.File]::ReadAllText($sshConfig)
+    }
+    else {
+        ""
+    }
+
+    $includePattern = '(?im)^[\t ]*Include[\t ]+c:/Apps-data/SSH/config[\t ]*(?:#[^\r\n]*)?\r?(?:\n|$)'
+    $includes = [regex]::Matches($content, $includePattern)
+    if ($includes.Count -eq 1) {
+        $precedingContent = $content.Substring(0, $includes[0].Index)
+        $scopes = [regex]::Matches($precedingContent, '(?im)^[\t ]*(?:Host|Match)[\t ]+[^\r\n]*')
+        if ($scopes.Count -eq 0 -or $scopes[$scopes.Count - 1].Value -match '(?i)^[\t ]*Host[\t ]+\*[\t ]*(?:#.*)?$') {
+            Write-Host "[OK] SSH configuration already includes '$includeDirective' for all hosts."
+            return
+        }
+    }
+
+    # Repair older conditional includes and keep local settings first: OpenSSH
+    # uses the first value it finds. A new Host block also ends any prior Match.
+    $content = [regex]::Replace($content, $includePattern, "")
+    $newline = if ($content.Contains("`r`n")) { "`r`n" } else { [Environment]::NewLine }
+    if ($content.Length -gt 0) {
+        if (-not $content.EndsWith("`n")) {
+            $content += $newline
+        }
+        $content += "Host *$newline"
+    }
+    $content += "$includeDirective$newline"
+
+    [IO.File]::WriteAllText($sshConfig, $content, [Text.UTF8Encoding]::new($false))
+    Write-Host "[OK] Configured the synced SSH include in '$sshConfig'."
 }
 
 function Initialize-SyncedProfile {
@@ -281,6 +341,8 @@ function Initialize-SyncedProfile {
         Set-ProfileLink @link
     }
 
+    Set-SshIncludeConfiguration -UserProfile $env:USERPROFILE
+
     $foobarSource = Join-Path $SyncRoot "Apps-data\foobar2000-v2"
     $foobarDestination = Join-Path $env:APPDATA "foobar2000-v2"
     New-Item -ItemType Directory -Path $foobarDestination -Force -ErrorAction Stop | Out-Null
@@ -295,7 +357,7 @@ function Initialize-SyncedProfile {
         Write-Host "[OK] Copied foobar2000 configuration."
     }
     else {
-        Write-Warning "foobar2000 configuration was not found: $foobarConfig"
+        Write-Host "[SKIP] foobar2000 configuration was not found: $foobarConfig"
     }
 
     Set-ProfileLink `

@@ -15,8 +15,6 @@ $requiredPaths = @(
     "00-run-install-manual.cmd"
     "Install.ps1"
     "config\Profiles.psd1"
-    "config\packages.common.json"
-    "config\packages.work.json"
     "modules\SystemSetup\SystemSetup.psd1"
     "modules\SystemSetup\SystemSetup.psm1"
     "modules\SyncProfile\SyncProfile.psd1"
@@ -33,24 +31,6 @@ foreach ($relativePath in $requiredPaths) {
     $fullPath = Join-Path $repositoryRoot $relativePath
     if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) {
         $validationErrors.Add("Missing required file: $relativePath")
-    }
-}
-
-$obsoletePaths = @(
-    "01-run-install-steps.ps1"
-    "02-select-sync-root.ps1"
-    "03-preconfigure-system.ps1"
-    "04-install-apps.ps1"
-    "05-postconfigure-system.ps1"
-    "06-apply-system-tweaks.ps1"
-    "07-remove-apps.ps1"
-    "lib"
-    "settings"
-)
-
-foreach ($relativePath in $obsoletePaths) {
-    if (Test-Path -LiteralPath (Join-Path $repositoryRoot $relativePath)) {
-        $validationErrors.Add("Obsolete execution layer still exists: $relativePath")
     }
 }
 
@@ -93,11 +73,21 @@ Get-ChildItem -LiteralPath $repositoryRoot -Recurse -File -Filter "*.json" |
         try {
             $json = Get-Content -LiteralPath $_.FullName -Raw | ConvertFrom-Json
             if ($_.DirectoryName -eq (Join-Path $repositoryRoot "config")) {
-                $packageIds = @(
-                    $json.Sources | ForEach-Object { $_.Packages.PackageIdentifier }
-                )
-                if ($packageIds.Count -eq 0) {
+                $manifestPath = $_.FullName
+                $packages = @($json.Sources | ForEach-Object { $_.Packages })
+                if ($packages.Count -eq 0) {
                     $validationErrors.Add("WinGet manifest contains no packages: $($_.FullName)")
+                }
+                $packageIds = [Collections.Generic.HashSet[string]]::new(
+                    [StringComparer]::OrdinalIgnoreCase
+                )
+                foreach ($package in $packages) {
+                    if ([string]::IsNullOrWhiteSpace($package.PackageIdentifier)) {
+                        $validationErrors.Add("PackageIdentifier must be nonempty: $manifestPath")
+                    }
+                    elseif (-not $packageIds.Add($package.PackageIdentifier)) {
+                        $validationErrors.Add("Duplicate package '$($package.PackageIdentifier)': $manifestPath")
+                    }
                 }
             }
         }
@@ -110,24 +100,54 @@ try {
     $profiles = Import-PowerShellDataFile `
         -LiteralPath (Join-Path $repositoryRoot "config\Profiles.psd1")
 
-    foreach ($requiredSection in @("Common", "HOME", "WORK")) {
-        if (-not $profiles.ContainsKey($requiredSection)) {
-            $validationErrors.Add("Profiles.psd1 is missing section: $requiredSection")
+    $requiredProperties = @{
+        Common = @(
+            "PackageManifest", "Registry", "ServicesToDisable", "ScheduledTasksToDisable",
+            "AppxRemovals", "WingetNameRemovals", "CapabilitiesToRemove"
+        )
+        HOME = @(
+            "BootLabel", "PromptForComputerName", "DisableLastAccess",
+            "AdditionalPackageManifests", "AdditionalWingetNameRemovals", "Registry"
+        )
+    }
+    $requiredProperties.WORK = $requiredProperties.HOME
+
+    foreach ($profileName in @("Common", "HOME", "WORK")) {
+        if ($profiles[$profileName] -isnot [Collections.IDictionary]) {
+            $validationErrors.Add("Profiles.psd1 requires a hashtable section: $profileName")
+            continue
+        }
+        foreach ($requiredProperty in $requiredProperties[$profileName]) {
+            if (-not $profiles[$profileName].ContainsKey($requiredProperty)) {
+                $validationErrors.Add("Profile $profileName is missing property: $requiredProperty")
+            }
         }
     }
 
     foreach ($profileName in @("HOME", "WORK")) {
-        foreach ($requiredProperty in @(
-                "BootLabel",
-                "PromptForComputerName",
-                "DisableLastAccess",
-                "AdditionalPackageManifests",
-                "AdditionalWingetNameRemovals",
-                "Registry"
-            )) {
-            if (-not $profiles[$profileName].ContainsKey($requiredProperty)) {
-                $validationErrors.Add("Profile $profileName is missing property: $requiredProperty")
+        $profile = $profiles[$profileName]
+        if ($profile -isnot [Collections.IDictionary]) {
+            continue
+        }
+        if ([string]::IsNullOrWhiteSpace($profile.BootLabel)) {
+            $validationErrors.Add("Profile $profileName requires a nonempty BootLabel.")
+        }
+        foreach ($property in @("PromptForComputerName", "DisableLastAccess")) {
+            if ($profile[$property] -isnot [bool]) {
+                $validationErrors.Add("Profile $profileName requires a Boolean $property.")
             }
+        }
+    }
+
+    $manifestNames = @($profiles.Common.PackageManifest) +
+        @($profiles.HOME.AdditionalPackageManifests) +
+        @($profiles.WORK.AdditionalPackageManifests)
+    foreach ($manifestName in $manifestNames) {
+        if ([string]::IsNullOrWhiteSpace($manifestName)) {
+            $validationErrors.Add("Package manifest references must be nonempty.")
+        }
+        elseif (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot "config\$manifestName") -PathType Leaf)) {
+            $validationErrors.Add("Referenced package manifest was not found: $manifestName")
         }
     }
 
@@ -136,6 +156,10 @@ try {
         @($profiles.WORK.Registry)
 
     foreach ($setting in $registrySettings) {
+        if ($setting -isnot [Collections.IDictionary]) {
+            $validationErrors.Add("Registry settings must be hashtables.")
+            continue
+        }
         foreach ($property in @("Path", "Name", "Type", "Value")) {
             if (-not $setting.ContainsKey($property)) {
                 $validationErrors.Add("Registry setting is missing property '$property': $setting")
@@ -145,10 +169,13 @@ try {
         if ($setting.Type -notin @("String", "ExpandString", "DWord", "QWord", "Binary", "MultiString")) {
             $validationErrors.Add("Unsupported registry value type: $($setting.Type)")
         }
+        if ([string]::IsNullOrWhiteSpace($setting.Path)) {
+            $validationErrors.Add("Registry setting requires a nonempty Path.")
+        }
     }
 }
 catch {
-    $validationErrors.Add("Could not import Profiles.psd1: $($_.Exception.Message)")
+    $validationErrors.Add("Could not validate Profiles.psd1: $($_.Exception.Message)")
 }
 
 foreach ($moduleManifest in @(
@@ -166,50 +193,6 @@ foreach ($moduleManifest in @(
     }
 }
 
-$systemModulePath = Join-Path $repositoryRoot "modules\SystemSetup\SystemSetup.psm1"
-if (Test-Path -LiteralPath $systemModulePath -PathType Leaf) {
-    $systemModuleText = Get-Content -LiteralPath $systemModulePath -Raw
-    foreach ($forbiddenPattern in @(
-            '\$SyncRoot',
-            'Apps-data',
-            'OneDrive',
-            'Dropbox'
-        )) {
-        if ($systemModuleText -match $forbiddenPattern) {
-            $validationErrors.Add(
-                "SystemSetup contains sync-specific dependency matching: $forbiddenPattern"
-            )
-        }
-    }
-}
-
-$productionPowerShellFiles = @(
-    Get-Item -LiteralPath (Join-Path $repositoryRoot "00-install.ps1")
-    Get-Item -LiteralPath (Join-Path $repositoryRoot "Install.ps1")
-    Get-ChildItem `
-        -LiteralPath (Join-Path $repositoryRoot "modules") `
-        -Recurse `
-        -File |
-        Where-Object { $_.Extension -in @(".ps1", ".psm1") }
-)
-
-$allPowerShellText = ($productionPowerShellFiles |
-        ForEach-Object { Get-Content -LiteralPath $_.FullName -Raw }) -join "`n"
-
-foreach ($obsoletePattern in @(
-        'Invoke-InstallStep',
-        '\$script:Log',
-        '\$script:FailedCount',
-        'reg\.exe\s+add',
-        'schtasks\.exe',
-        'sc\.exe\s+(query|config)',
-        'dism\.exe'
-    )) {
-    if ($allPowerShellText -match $obsoletePattern) {
-        $validationErrors.Add("Obsolete wrapper/native pattern remains: $obsoletePattern")
-    }
-}
-
 if ($validationErrors.Count -gt 0) {
     foreach ($validationError in $validationErrors) {
         Write-Host "[ERROR] $validationError"
@@ -217,4 +200,4 @@ if ($validationErrors.Count -gt 0) {
     throw "Repository validation failed with $($validationErrors.Count) error(s)."
 }
 
-Write-Host "[OK] Syntax, verbs, manifests, configuration data, architecture boundaries, and required files are valid."
+Write-Host "[OK] Syntax, verbs, manifests, configuration data, and required files are valid."

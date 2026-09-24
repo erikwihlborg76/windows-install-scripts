@@ -92,6 +92,11 @@ The installer runs in one Windows PowerShell process:
 7. Remove configured WinGet, AppX, provisioned AppX, and Windows capability entries.
 
 A single transcript records the workflow under `%TEMP%\windows-install-<timestamp>.log`.
+The final summary lists any operations that could not be completed. Exit code `0`
+means successful completion (or cancellation before setup), `1` means setup stopped
+on an error, and `2` means setup finished with warnings. Expected skips, such as an
+application that is already absent or optional sync data that is missing, do not
+count as failures.
 
 ## Sync layout
 
@@ -101,7 +106,7 @@ FULL resolves the selected sync root from:
 | --- | --- |
 | OneDrive Business | `OneDriveCommercial` |
 | OneDrive | `OneDriveConsumer` |
-| Dropbox | `%APPDATA%\Dropbox\info.json` |
+| Dropbox | `%APPDATA%\Dropbox\info.json`, falling back to `%LOCALAPPDATA%\Dropbox\info.json` |
 
 Dropbox discovery handles multiple accounts by selecting the only account containing both required folders. The sync root must contain:
 
@@ -116,7 +121,14 @@ The installer creates:
 ```text
 C:\Apps      -> <sync-root>\Apps
 C:\Apps-data -> <sync-root>\Apps-data
+%USERPROFILE%\.ssh\config
 ```
+
+The SSH config contains `Include c:/Apps-data/SSH/config`, so OpenSSH loads the
+configuration stored under the sync-backed `Apps-data\SSH` directory. Existing
+SSH settings retain precedence, and the include is placed in an unconditional
+`Host *` block when extending an existing config. Rerunning setup does not add
+another include.
 
 Optional sync-backed state can use:
 
@@ -125,6 +137,7 @@ Apps-data\
 ├── .openhue\
 ├── GHISLER\
 ├── Highresolution Enterprises\
+├── SSH\config
 ├── foobar2000-v2\
 ├── PowerToys\
 │   ├── FancyZones\
@@ -134,6 +147,7 @@ Apps-data\
 ```
 
 Everything under `Apps-data\Shortcuts` is copied to the current user's Start menu. Personal and private data should remain under `Apps-data`, not in this repository.
+Copies use bounded retries and retain diagnostics if a file cannot be copied.
 
 ## Repository structure
 
@@ -148,6 +162,7 @@ resources\LGPO\                    Local Group Policy configuration
 resources\Windows Terminal\        Repository-provided Terminal settings
 tests\                              Pester behavior and boundary tests
 tools\validate.ps1                 Syntax, data, structure, and boundary checks
+tools\test.ps1                     Shared local and CI validation runner
 ```
 
 `SystemSetup` intentionally uses built-in PowerShell providers and modules for registry values, services, scheduled tasks, DISM capabilities, and AppX packages. Custom logic remains only where the repository needs specific behavior, such as safe reparse-point replacement, Dropbox account resolution, WinGet manifests, and LGPO discovery.
@@ -172,10 +187,18 @@ Run the local validator with Windows PowerShell 5.1:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate.ps1
 ```
 
-Run Pester tests when Pester is installed:
+Install the pinned test tools once, then run the same checks as CI with Windows
+PowerShell 5.1:
 
 ```powershell
-Invoke-Pester -Path .\tests
+Install-Module Pester -RequiredVersion 5.7.1 -Scope CurrentUser -Force -SkipPublisherCheck
+Install-Module PSScriptAnalyzer -RequiredVersion 1.25.0 -Scope CurrentUser -Force
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test.ps1
 ```
+
+The runner also accepts `-PesterModulePath` and `-ScriptAnalyzerModulePath` for
+isolated copies of those versions. Tests use temporary files, isolated registry
+keys, and mocked setup operations; they do not run the real installer against
+Windows settings.
 
 CI runs the validator, PSScriptAnalyzer, and Pester. The installer is rerunnable but not transactional; restoring removed policies, services, capabilities, or applications is manual.
