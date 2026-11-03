@@ -26,6 +26,7 @@
             @{ Path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"; Name = "TaskbarFlashing"; Type = "DWord"; Value = 0 }
             @{ Path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"; Name = "ShowCopilotButton"; Type = "DWord"; Value = 0 }
             @{ Path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"; Name = "ShowTaskViewButton"; Type = "DWord"; Value = 0 }
+            @{ Path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"; Name = "Start_IrisRecommendations"; Type = "DWord"; Value = 0 }
             @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer"; Name = "HideRecommendedSection"; Type = "DWord"; Value = 1 }
             @{ Path = "HKCU:\Software\Policies\Microsoft\Windows\Explorer"; Name = "MultiTaskingAltTabFilter"; Type = "DWord"; Value = 4 }
             @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer"; Name = "MultiTaskingAltTabFilter"; Type = "DWord"; Value = 4 }
