@@ -1,0 +1,37 @@
+{
+  "properties": {
+    "changeSystem": {
+      "value": true
+    },
+    "changeApps": {
+      "value": true
+    },
+    "lightTime": {
+      "value": 481
+    },
+    "darkTime": {
+      "value": 1069
+    },
+    "sunrise_offset": {
+      "value": 0
+    },
+    "sunset_offset": {
+      "value": 0
+    },
+    "scheduleMode": {
+      "value": "SunsetToSunrise"
+    },
+    "toggle-theme-hotkey": {
+      "value": {
+        "win": true,
+        "ctrl": true,
+        "alt": false,
+        "shift": true,
+        "code": 68,
+        "key": ""
+      }
+    }
+  },
+  "name": "LightSwitch",
+  "version": "1.0"
+}

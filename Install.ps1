@@ -174,10 +174,6 @@ try {
             Set-RepositoryApplicationDefaults -ResourcesRoot $resourcesRoot -WarningVariable +setupWarnings
         }
 
-        if ($useSyncProfile) {
-            Restore-SyncedApplicationState -SyncRoot $resolvedSyncRoot -WarningVariable +setupWarnings
-        }
-
         Invoke-SystemConfiguration `
             -Profile $Profile `
             -CommonConfiguration $commonConfiguration `

@@ -334,7 +334,6 @@ function Initialize-SyncedProfile {
         @{ LinkPath = "C:\Apps-data"; TargetPath = (Join-Path $SyncRoot "Apps-data"); Required = $true }
         @{ LinkPath = (Join-Path $env:USERPROFILE ".openhue"); TargetPath = (Join-Path $SyncRoot "Apps-data\.openhue") }
         @{ LinkPath = (Join-Path $env:APPDATA "GHISLER"); TargetPath = (Join-Path $SyncRoot "Apps-data\GHISLER") }
-        @{ LinkPath = (Join-Path $env:APPDATA "Highresolution Enterprises"); TargetPath = (Join-Path $SyncRoot "Apps-data\Highresolution Enterprises") }
     )
 
     foreach ($link in $links) {
@@ -343,27 +342,6 @@ function Initialize-SyncedProfile {
 
     Set-SshIncludeConfiguration -UserProfile $env:USERPROFILE
 
-    $foobarSource = Join-Path $SyncRoot "Apps-data\foobar2000-v2"
-    $foobarDestination = Join-Path $env:APPDATA "foobar2000-v2"
-    New-Item -ItemType Directory -Path $foobarDestination -Force -ErrorAction Stop | Out-Null
-
-    $foobarConfig = Join-Path $foobarSource "config.sqlite"
-    if (Test-Path -LiteralPath $foobarConfig -PathType Leaf) {
-        Copy-Item `
-            -LiteralPath $foobarConfig `
-            -Destination $foobarDestination `
-            -Force `
-            -ErrorAction Stop
-        Write-Host "[OK] Copied foobar2000 configuration."
-    }
-    else {
-        Write-Host "[SKIP] foobar2000 configuration was not found: $foobarConfig"
-    }
-
-    Set-ProfileLink `
-        -LinkPath (Join-Path $foobarDestination "playlists-v2.0") `
-        -TargetPath (Join-Path $foobarSource "playlists-v2.0")
-
     $startMenu = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
     Copy-DirectoryContents `
         -Source (Join-Path $SyncRoot "Apps-data\Shortcuts") `
@@ -371,73 +349,7 @@ function Initialize-SyncedProfile {
         -Description "Start-menu shortcuts"
 }
 
-function Restore-SyncedApplicationState {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string] $SyncRoot
-    )
-
-    Write-Host ""
-    Write-Host "========== Restoring sync-backed application state =========="
-
-    $powerToysRoot = Join-Path $SyncRoot "Apps-data\PowerToys"
-    if (-not (Test-Path -LiteralPath $powerToysRoot -PathType Container)) {
-        Write-Host "[SKIP] PowerToys state was not found: $powerToysRoot"
-        return
-    }
-
-    Copy-DirectoryContents `
-        -Source (Join-Path $powerToysRoot "FancyZones") `
-        -Destination (Join-Path $env:LOCALAPPDATA "Microsoft\PowerToys\FancyZones") `
-        -Description "PowerToys FancyZones state"
-
-    Copy-DirectoryContents `
-        -Source (Join-Path $powerToysRoot "LightSwitch") `
-        -Destination (Join-Path $env:LOCALAPPDATA "Microsoft\PowerToys\LightSwitch") `
-        -Description "PowerToys LightSwitch state"
-
-    $commandPaletteSettings = Join-Path $powerToysRoot "CommandPalette\settings.json"
-    if (-not (Test-Path -LiteralPath $commandPaletteSettings -PathType Leaf)) {
-        Write-Host "[SKIP] Command Palette settings were not found: $commandPaletteSettings"
-        return
-    }
-
-    $packagesRoot = Join-Path $env:LOCALAPPDATA "Packages"
-    $commandPalettePackages = @(
-        Get-ChildItem `
-            -LiteralPath $packagesRoot `
-            -Directory `
-            -Filter "Microsoft.CommandPalette_*" `
-            -ErrorAction SilentlyContinue
-    )
-
-    if ($commandPalettePackages.Count -eq 0) {
-        Write-Warning "No Microsoft Command Palette package folder was found."
-        return
-    }
-
-    foreach ($package in $commandPalettePackages) {
-        $localState = Join-Path $package.FullName "LocalState"
-        $destination = Join-Path $localState "settings.json"
-
-        try {
-            New-Item -ItemType Directory -Path $localState -Force -ErrorAction Stop | Out-Null
-            Copy-Item `
-                -LiteralPath $commandPaletteSettings `
-                -Destination $destination `
-                -Force `
-                -ErrorAction Stop
-            Write-Host "[OK] Copied Command Palette settings to $destination"
-        }
-        catch {
-            Write-Warning "Failed to copy Command Palette settings to '$destination': $($_.Exception.Message)"
-        }
-    }
-}
-
 Export-ModuleMember -Function @(
     "Initialize-SyncedProfile"
     "Resolve-SyncRoot"
-    "Restore-SyncedApplicationState"
 )

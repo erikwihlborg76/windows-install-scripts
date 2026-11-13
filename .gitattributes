@@ -9,4 +9,7 @@
 *.yaml text eol=lf
 *.yml text eol=lf
 *.txt text eol=crlf
+*.fplite text eol=lf
+*.sqlite binary
+*.fth binary
 *.ico binary

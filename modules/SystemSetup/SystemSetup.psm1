@@ -1,3 +1,5 @@
+. (Join-Path $PSScriptRoot "ApplicationSettings.ps1")
+
 function Test-SetupAdministrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = [Security.Principal.WindowsPrincipal]::new($identity)
@@ -219,6 +221,8 @@ function Set-RepositoryApplicationDefaults {
 
     Write-Host ""
     Write-Host "========== Repository-provided application settings =========="
+
+    Set-RepositoryApplicationSettings -ResourcesRoot $ResourcesRoot
 
     $terminalSettings = Join-Path $ResourcesRoot "Windows Terminal\settings.json"
     if (-not (Test-Path -LiteralPath $terminalSettings -PathType Leaf)) {

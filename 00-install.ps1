@@ -74,10 +74,21 @@
                 "config\packages.work.json",
                 "modules\SystemSetup\SystemSetup.psd1",
                 "modules\SystemSetup\SystemSetup.psm1",
+                "modules\SystemSetup\ApplicationSettings.ps1",
                 "modules\SyncProfile\SyncProfile.psd1",
                 "modules\SyncProfile\SyncProfile.psm1",
                 "resources\LGPO\global_policy_objects.txt",
-                "resources\Windows Terminal\settings.json"
+                "resources\Windows Terminal\settings.json",
+                "resources\X-Mouse Button Control\XMBCSettings.xml",
+                "resources\PowerToys\FancyZones\settings.json",
+                "resources\PowerToys\FancyZones\custom-layouts.json",
+                "resources\PowerToys\LightSwitch\settings.json",
+                "resources\PowerToys\CommandPalette\settings.json",
+                "resources\foobar2000-v2\config.sqlite",
+                "resources\foobar2000-v2\theme.fth",
+                "resources\foobar2000-v2\playlists-v2.0\index.txt",
+                "resources\foobar2000-v2\playlists-v2.0\playlist-8CD72BCC-0298-48EE-88C9-2783441A585F.fplite",
+                "resources\foobar2000-v2\playlists-v2.0\playlist-8CD72BCC-0298-48EE-88C9-2783441A585F-props.sqlite"
             )) {
             $requiredPath = Join-Path $installerRoot $requiredFile
             if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {

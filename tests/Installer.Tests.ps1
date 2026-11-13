@@ -25,6 +25,9 @@ function Invoke-TestPhase {
     if ($scenario -eq "partial" -and $Name -in @("Applications", "Removal")) {
         Write-Warning "$Name failed in fixture"
     }
+    if ($scenario -eq "defaults-warning" -and $Name -eq "Defaults") {
+        Write-Warning "Application settings failed in fixture"
+    }
     if ($Name -eq "Removal" -and $scenario -eq "success") { Write-Host "[SKIP] Already absent" }
 }
 function Restart-SetupAsAdministrator { param($ScriptPath, $BoundParameters); return $null }
@@ -51,13 +54,6 @@ function Resolve-SyncRoot { param($SyncProvider, $SyncRootOverride); return $Syn
 function Initialize-SyncedProfile {
     [CmdletBinding()] param($SyncRoot)
     Add-Content -LiteralPath (Join-Path $PSScriptRoot "..\..\phases.txt") -Value "InitializeSync"
-}
-function Restore-SyncedApplicationState {
-    [CmdletBinding()] param($SyncRoot)
-    Add-Content -LiteralPath (Join-Path $PSScriptRoot "..\..\phases.txt") -Value "RestoreSync"
-    if ((Get-Content -LiteralPath (Join-Path $PSScriptRoot "..\..\scenario.txt")) -eq "sync-warning") {
-        Write-Warning "Sync restoration failed in fixture"
-    }
 }
 '@
 
@@ -90,7 +86,7 @@ function Restore-SyncedApplicationState {
 
 Describe "Installer outcomes" {
     It "runs the expected phases for <Preset> and treats absence as success" -TestCases @(
-        @{ Preset = "FULL"; Expected = "InitializeSync,Applications,Defaults,RestoreSync,System,Removal" }
+        @{ Preset = "FULL"; Expected = "InitializeSync,Applications,Defaults,System,Removal" }
         @{ Preset = "SYSTEM_AND_APPS"; Expected = "Applications,Defaults,System,Removal" }
         @{ Preset = "SYSTEM_ONLY"; Expected = "System,Removal" }
     ) {
@@ -111,10 +107,10 @@ Describe "Installer outcomes" {
         $result.Transcript | Should -Not -Match '\[OK\] Setup completed\.'
     }
 
-    It "includes failures from the sync module in the outcome" {
-        $result = Invoke-InstallerFixture -Scenario sync-warning
+    It "includes repository application settings failures without requiring sync" {
+        $result = Invoke-InstallerFixture -Preset SYSTEM_AND_APPS -Scenario defaults-warning
         $result.ExitCode | Should -Be 2
-        $result.Output | Should -Match 'Sync restoration failed in fixture'
+        $result.Output | Should -Match 'Application settings failed in fixture'
     }
 
     It "stops on a terminating failure and records it in the transcript" {

@@ -86,10 +86,9 @@ The installer runs in one Windows PowerShell process:
 1. Elevate and verify WinGet.
 2. Resolve the preset, HOME/WORK profile, and optional sync provider.
 3. For FULL, create sync-backed links before applications can create conflicting folders.
-4. For FULL or SYSTEM_AND_APPS, install the WinGet manifests and apply repository-provided Windows Terminal settings.
-5. For FULL, restore PowerToys and other sync-backed application state.
-6. Apply registry settings, service and scheduled-task configuration, LGPO policy, and power settings.
-7. Remove configured WinGet, AppX, provisioned AppX, and Windows capability entries.
+4. For FULL or SYSTEM_AND_APPS, install the WinGet manifests and apply repository application settings, including Windows Terminal preferences.
+5. Apply registry settings, service and scheduled-task configuration, LGPO policy, and power settings.
+6. Remove configured WinGet, AppX, provisioned AppX, and Windows capability entries.
 
 A single transcript records the workflow under `%TEMP%\windows-install-<timestamp>.log`.
 The final summary lists any operations that could not be completed. Exit code `0`
@@ -97,6 +96,43 @@ means successful completion (or cancellation before setup), `1` means setup stop
 on an error, and `2` means setup finished with warnings. Expected skips, such as an
 application that is already absent or optional sync data that is missing, do not
 count as failures.
+
+## Repository application settings
+
+Both `FULL` and `SYSTEM_AND_APPS` restore these reviewed settings from `resources`,
+without needing OneDrive, Dropbox, or `Apps-data`:
+
+| Resource | Restored settings |
+| --- | --- |
+| `X-Mouse Button Control/XMBCSettings.xml` | Mouse button mappings and application profiles |
+| `PowerToys/FancyZones/` | Preferences and custom zone layouts |
+| `PowerToys/LightSwitch/settings.json` | Theme, schedule, and shortcut preferences |
+| `PowerToys/CommandPalette/settings.json` | Command Palette preferences and provider selections |
+| `foobar2000-v2/` | Configuration database, theme, keyboard shortcuts, and Radio Paradise playlists |
+
+Close X-Mouse Button Control, foobar2000, PowerToys, and Command Palette before
+applying their settings. Running applications are skipped with a warning so they
+cannot overwrite the restored files. Launch Command Palette once if its package
+folder has not been initialized, then rerun setup. `SYSTEM_ONLY` does not restore
+application settings.
+
+Settings are copied into local application folders, never linked to the repository.
+Existing files are backed up beside themselves as `<filename>.backup-<timestamp>-<id>`
+before replacement. Identical files are left untouched. Existing X-Mouse and
+foobar2000 playlist directory links are converted to local folders first; their
+former synced sources and unmanaged files are preserved. If foobar2000 has pending
+SQLite recovery files, its database is skipped until it has been opened and closed.
+
+Light Switch preferences are merged with the local JSON so existing coordinates
+and unrelated settings survive. The repository omits latitude and longitude;
+configure your location in PowerToys on a new computer for sunrise/sunset scheduling.
+The foobar2000 snapshot excludes the old file picker path and usage metadata.
+Logs, conflict copies, SQLite journals, and X-Mouse language packs and backups are
+not included. Later application changes stay local; update the reviewed resource
+files deliberately when changing repository defaults.
+
+Only OpenHue, Total Commander, SSH configuration, and personal Start menu shortcuts
+continue to use private sync-backed files.
 
 ## Sync layout
 
@@ -136,17 +172,11 @@ Optional sync-backed state can use:
 Apps-data\
 ├── .openhue\
 ├── GHISLER\
-├── Highresolution Enterprises\
 ├── SSH\config
-├── foobar2000-v2\
-├── PowerToys\
-│   ├── FancyZones\
-│   ├── LightSwitch\
-│   └── CommandPalette\settings.json
 └── Shortcuts\
 ```
 
-Everything under `Apps-data\Shortcuts` is copied to the current user's Start menu. Personal and private data should remain under `Apps-data`, not in this repository.
+Everything under `Apps-data\Shortcuts` is copied to the current user's Start menu. Personal and private data should remain under `Apps-data`; reviewed application defaults live in this repository.
 Copies use bounded retries and retain diagnostics if a file cannot be copied.
 
 ## Repository structure
@@ -157,9 +187,13 @@ config\Profiles.psd1                Common and HOME/WORK configuration
 config\packages.common.json        Common WinGet package manifest
 config\packages.work.json          WORK package additions
 modules\SystemSetup\               Sync-independent Windows operations
+modules\SystemSetup\ApplicationSettings.ps1  Local application settings and link migration
 modules\SyncProfile\               Sync discovery, links, and private state
 resources\LGPO\                    Local Group Policy configuration
 resources\Windows Terminal\        Repository-provided Terminal settings
+resources\PowerToys\                Reviewed PowerToys preferences and layouts
+resources\X-Mouse Button Control\  Mouse button configuration
+resources\foobar2000-v2\           Configuration, theme, and radio playlists
 tests\                              Pester behavior and boundary tests
 tools\validate.ps1                 Syntax, data, structure, and boundary checks
 tools\test.ps1                     Shared local and CI validation runner

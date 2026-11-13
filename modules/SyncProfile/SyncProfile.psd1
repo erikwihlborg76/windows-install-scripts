@@ -8,7 +8,6 @@
     FunctionsToExport = @(
         "Initialize-SyncedProfile"
         "Resolve-SyncRoot"
-        "Restore-SyncedApplicationState"
     )
     CmdletsToExport = @()
     VariablesToExport = @()
