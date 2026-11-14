@@ -18,6 +18,9 @@ $requiredPaths = @(
     "modules\SystemSetup\SystemSetup.psd1"
     "modules\SystemSetup\SystemSetup.psm1"
     "modules\SystemSetup\ApplicationSettings.ps1"
+    "modules\SystemSetup\VirtualDesktops.ps1"
+    "modules\SystemSetup\FancyZonesSettings.ps1"
+    "modules\SystemSetup\TerminalSettings.ps1"
     "modules\SyncProfile\SyncProfile.psd1"
     "modules\SyncProfile\SyncProfile.psm1"
     "resources\LGPO\global_policy_objects.txt"
@@ -37,6 +40,9 @@ $requiredPaths = @(
     "tests\SyncProfile.Tests.ps1"
     "tests\SystemSetup.Tests.ps1"
     "tests\ApplicationSettings.Tests.ps1"
+    "tests\VirtualDesktops.Tests.ps1"
+    "tests\FancyZones.Tests.ps1"
+    "tests\TerminalSettings.Tests.ps1"
 )
 
 foreach ($relativePath in $requiredPaths) {
@@ -114,11 +120,11 @@ try {
 
     $requiredProperties = @{
         Common = @(
-            "PackageManifest", "Registry", "ServicesToDisable", "ScheduledTasksToDisable",
+            "PackageManifest", "Registry", "ApplicationRegistry", "ServicesToDisable", "ScheduledTasksToDisable",
             "AppxRemovals", "WingetNameRemovals", "CapabilitiesToRemove"
         )
         HOME = @(
-            "BootLabel", "PromptForComputerName", "DisableLastAccess",
+            "BootLabel", "PromptForComputerName", "VirtualDesktopNames",
             "AdditionalPackageManifests", "AdditionalWingetNameRemovals", "Registry"
         )
     }
@@ -144,9 +150,21 @@ try {
         if ([string]::IsNullOrWhiteSpace($profile.BootLabel)) {
             $validationErrors.Add("Profile $profileName requires a nonempty BootLabel.")
         }
-        foreach ($property in @("PromptForComputerName", "DisableLastAccess")) {
-            if ($profile[$property] -isnot [bool]) {
-                $validationErrors.Add("Profile $profileName requires a Boolean $property.")
+        if ($profile.PromptForComputerName -isnot [bool]) {
+            $validationErrors.Add("Profile $profileName requires a Boolean PromptForComputerName.")
+        }
+        if ($profile.VirtualDesktopNames -isnot [array]) {
+            $validationErrors.Add("Profile $profileName requires a VirtualDesktopNames array.")
+        }
+        else {
+            $desktopNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+            foreach ($desktopName in $profile.VirtualDesktopNames) {
+                if ($desktopName -isnot [string] -or [string]::IsNullOrWhiteSpace($desktopName)) {
+                    $validationErrors.Add("Profile $profileName requires nonempty virtual desktop names.")
+                }
+                elseif (-not $desktopNames.Add($desktopName)) {
+                    $validationErrors.Add("Profile $profileName has a duplicate virtual desktop name: $desktopName")
+                }
             }
         }
     }
@@ -164,6 +182,7 @@ try {
     }
 
     $registrySettings = @($profiles.Common.Registry) +
+        @($profiles.Common.ApplicationRegistry) +
         @($profiles.HOME.Registry) +
         @($profiles.WORK.Registry)
 

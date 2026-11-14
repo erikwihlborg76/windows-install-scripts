@@ -5,10 +5,6 @@ param(
     [string] $Profile,
 
     [Parameter()]
-    [ValidateSet("FULL", "SYSTEM_AND_APPS", "SYSTEM_ONLY")]
-    [string] $Preset,
-
-    [Parameter()]
     [ValidateSet("OneDriveBusiness", "OneDrive", "Dropbox")]
     [string] $SyncProvider,
 
@@ -77,18 +73,17 @@ try {
 
     $configuration = Import-PowerShellDataFile -LiteralPath $profileDataPath
 
-    if ([string]::IsNullOrWhiteSpace($Preset)) {
-        $presetChoice = Read-SetupChoice `
-            -Caption "Select workflow" `
-            -Message "Choose which independent setup features to run." `
-            -Labels @(
-                "&Full - system, applications, and sync-backed profile"
-                "System and &apps - no sync-backed files"
-                "System &only - settings and app removal"
-            )
+    $modeChoice = Read-SetupChoice `
+        -Caption "Select setup mode" `
+        -Message "Choose whether to apply Windows configuration and install applications." `
+        -Labels @(
+            "Configure Windows and install &apps"
+            "Configure Windows &only - settings and app removal"
+            "&Full - author's personal setup, including private sync files"
+        ) `
+        -DefaultChoice -1
 
-        $Preset = @("FULL", "SYSTEM_AND_APPS", "SYSTEM_ONLY")[$presetChoice]
-    }
+    $Mode = @("CONFIGURE_AND_INSTALL", "CONFIGURE_ONLY", "FULL")[$modeChoice]
 
     if ([string]::IsNullOrWhiteSpace($Profile)) {
         $profileChoice = Read-SetupChoice `
@@ -105,8 +100,8 @@ try {
         throw "Profile configuration is incomplete for: $Profile"
     }
 
-    $installApps = $Preset -in @("FULL", "SYSTEM_AND_APPS")
-    $useSyncProfile = $Preset -eq "FULL"
+    $installApps = $Mode -in @("CONFIGURE_AND_INSTALL", "FULL")
+    $useSyncProfile = $Mode -eq "FULL"
     $resolvedSyncRoot = $null
 
     if ($useSyncProfile) {
@@ -126,7 +121,7 @@ try {
 
     Write-Host ""
     Write-Host "========== Setup plan =========="
-    Write-Host "Preset:       $Preset"
+    Write-Host "Mode:         $Mode"
     Write-Host "Profile:      $Profile"
     Write-Host "Install apps: $installApps"
     Write-Host "Use sync:     $useSyncProfile"
@@ -180,6 +175,10 @@ try {
             -ProfileConfiguration $profileConfiguration `
             -ResourcesRoot $resourcesRoot `
             -WarningVariable +setupWarnings
+
+        if ($installApps) {
+            Set-RepositoryFancyZonesLayout -ResourcesRoot $resourcesRoot -WarningVariable +setupWarnings
+        }
 
         Remove-UnwantedSoftware `
             -CommonConfiguration $commonConfiguration `

@@ -7,7 +7,8 @@ Describe "SystemSetup public surface" {
     It "exports only the phase-level commands" {
         $expected = @(
             "Assert-WinGet", "Install-Applications", "Invoke-SystemConfiguration",
-            "Remove-UnwantedSoftware", "Restart-SetupAsAdministrator", "Set-RepositoryApplicationDefaults"
+            "Remove-UnwantedSoftware", "Restart-SetupAsAdministrator", "Set-RepositoryApplicationDefaults",
+            "Set-RepositoryFancyZonesLayout"
         )
         $actual = @(Get-Command -Module SystemSetup | Select-Object -ExpandProperty Name | Sort-Object)
         $actual | Should -Be ($expected | Sort-Object)
@@ -122,6 +123,43 @@ Describe "Native command results" {
 }
 
 Describe "WinGet configuration guards" {
+    It "applies application registry settings after successful package imports" {
+        InModuleScope SystemSetup -Parameters @{ Root = $repositoryRoot } {
+            param($Root)
+            Mock Assert-WinGet {}
+            Mock Install-WinGetManifest {}
+            Mock Set-ConfiguredRegistryValues {}
+            Mock Test-WindowsActivation {}
+            $profiles = Import-PowerShellDataFile -LiteralPath (Join-Path $Root "config\Profiles.psd1")
+
+            Install-Applications -ConfigRoot (Join-Path $Root "config") `
+                -CommonConfiguration $profiles.Common -ProfileConfiguration $profiles.WORK
+
+            Should -Invoke Install-WinGetManifest -Times 2 -Exactly
+            Should -Invoke Set-ConfiguredRegistryValues -Times 1 -Exactly -ParameterFilter {
+                $Settings.Count -eq 2 -and $Settings[0].Path -like '*\open_vscode' -and
+                $Settings[1].Path -like '*\open_vscode\command'
+            }
+        }
+    }
+
+    It "does not register application integration when package installation fails" {
+        InModuleScope SystemSetup -Parameters @{ Root = $repositoryRoot } {
+            param($Root)
+            Mock Assert-WinGet {}
+            Mock Install-WinGetManifest { throw "Package import failed" }
+            Mock Set-ConfiguredRegistryValues {}
+            Mock Test-WindowsActivation {}
+            $profiles = Import-PowerShellDataFile -LiteralPath (Join-Path $Root "config\Profiles.psd1")
+
+            { Install-Applications -ConfigRoot (Join-Path $Root "config") `
+                -CommonConfiguration $profiles.Common -ProfileConfiguration $profiles.WORK } |
+                Should -Throw '*Package import failed*'
+
+            Should -Invoke Set-ConfiguredRegistryValues -Times 0 -Exactly
+        }
+    }
+
     It "throws recovery instructions when WinGet is unavailable" {
         InModuleScope SystemSetup {
             Mock Test-WinGetAvailable { $false }

@@ -1,4 +1,8 @@
+. (Join-Path $PSScriptRoot "TerminalSettings.ps1")
+
 . (Join-Path $PSScriptRoot "ApplicationSettings.ps1")
+. (Join-Path $PSScriptRoot "VirtualDesktops.ps1")
+. (Join-Path $PSScriptRoot "FancyZonesSettings.ps1")
 
 function Test-SetupAdministrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -207,6 +211,10 @@ function Install-Applications {
         Install-WinGetManifest -ManifestPath $manifestPath
     }
 
+    if ($CommonConfiguration.ApplicationRegistry) {
+        Set-ConfiguredRegistryValues -Settings @($CommonConfiguration.ApplicationRegistry)
+    }
+
     Write-Host ""
     Write-Host "========== Windows activation check =========="
     Test-WindowsActivation
@@ -230,35 +238,41 @@ function Set-RepositoryApplicationDefaults {
         return
     }
 
-    $packagesRoot = Join-Path $env:LOCALAPPDATA "Packages"
-    $terminalPackages = @(
-        Get-ChildItem `
-            -LiteralPath $packagesRoot `
-            -Directory `
-            -Filter "Microsoft.WindowsTerminal_*" `
-            -ErrorAction SilentlyContinue
-    )
-
-    if ($terminalPackages.Count -eq 0) {
-        Write-Warning "No Microsoft.WindowsTerminal package folder was found."
+    try {
+        $defaults = (Read-TerminalJson -Text ([IO.File]::ReadAllText($terminalSettings))).Value
+    }
+    catch {
+        Write-Warning "Invalid repository Terminal preferences: $($_.Exception.Message)"
         return
     }
 
-    foreach ($package in $terminalPackages) {
-        $localState = Join-Path $package.FullName "LocalState"
-        $destination = Join-Path $localState "settings.json"
+    if (Get-Process -Name "WindowsTerminal" -ErrorAction SilentlyContinue) {
+        Write-Warning "Close Windows Terminal and rerun setup to apply its preferences."
+        return
+    }
 
+    $packagesRoot = Join-Path $env:LOCALAPPDATA "Packages"
+    $settingsPaths = @(
+        foreach ($filter in @("Microsoft.WindowsTerminal_*", "Microsoft.WindowsTerminalPreview_*")) {
+            Get-ChildItem -LiteralPath $packagesRoot -Directory -Filter $filter -ErrorAction SilentlyContinue |
+                ForEach-Object { Join-Path $_.FullName "LocalState\settings.json" }
+        }
+        $unpackagedRoot = Join-Path $env:LOCALAPPDATA "Microsoft\Windows Terminal"
+        if (Test-Path -LiteralPath $unpackagedRoot -PathType Container) {
+            Join-Path $unpackagedRoot "settings.json"
+        }
+    )
+    if ($settingsPaths.Count -eq 0) {
+        Write-Warning "No Windows Terminal settings location was found. Launch Terminal once and rerun setup."
+        return
+    }
+
+    foreach ($destination in ($settingsPaths | Select-Object -Unique)) {
         try {
-            New-Item -ItemType Directory -Path $localState -Force -ErrorAction Stop | Out-Null
-            Copy-Item `
-                -LiteralPath $terminalSettings `
-                -Destination $destination `
-                -Force `
-                -ErrorAction Stop
-            Write-Host "[OK] Copied Windows Terminal settings to $destination"
+            Set-TerminalSettingsFile -SettingsPath $destination -Defaults $defaults
         }
         catch {
-            Write-Warning "Failed to copy Windows Terminal settings to '$destination': $($_.Exception.Message)"
+            Write-Warning "Failed to apply Windows Terminal preferences to '$destination': $($_.Exception.Message)"
         }
     }
 }
@@ -704,20 +718,7 @@ function Invoke-SystemConfiguration {
     Disable-ConfiguredScheduledTasks -Tasks @($CommonConfiguration.ScheduledTasksToDisable)
     Disable-SystemSounds
 
-    if ($ProfileConfiguration.DisableLastAccess) {
-        $result = Invoke-SetupNativeCommand -FilePath "fsutil.exe" -Arguments @(
-            "behavior", "set", "DisableLastAccess", "1"
-        )
-        foreach ($line in $result.Output) {
-            Write-Host $line
-        }
-        if ($result.ExitCode -ne 0) {
-            Write-Warning "Failed to disable last-access timestamp updates."
-        }
-        else {
-            Write-Host "[OK] Disabled last-access timestamp updates."
-        }
-    }
+    Set-ConfiguredVirtualDesktops -Profile $Profile -Names @($ProfileConfiguration.VirtualDesktopNames)
 
     Import-LgpoPolicy -ResourcesRoot $ResourcesRoot
     Disable-NetworkAdapterWake
@@ -879,4 +880,5 @@ Export-ModuleMember -Function @(
     "Remove-UnwantedSoftware"
     "Restart-SetupAsAdministrator"
     "Set-RepositoryApplicationDefaults"
+    "Set-RepositoryFancyZonesLayout"
 )

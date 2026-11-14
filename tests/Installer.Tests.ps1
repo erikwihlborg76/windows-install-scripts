@@ -40,6 +40,10 @@ function Set-RepositoryApplicationDefaults {
     [CmdletBinding()] param($ResourcesRoot)
     Invoke-TestPhase Defaults
 }
+function Set-RepositoryFancyZonesLayout {
+    [CmdletBinding()] param($ResourcesRoot)
+    Invoke-TestPhase FancyZones
+}
 function Invoke-SystemConfiguration {
     [CmdletBinding()] param($Profile, $CommonConfiguration, $ProfileConfiguration, $ResourcesRoot)
     Invoke-TestPhase System
@@ -58,15 +62,28 @@ function Initialize-SyncedProfile {
 '@
 
     function Invoke-InstallerFixture {
-        param([string] $Preset = "FULL", [string] $Scenario = "success")
+        param(
+            [string] $Mode = "CONFIGURE_AND_INSTALL",
+            [string] $Scenario = "success",
+            [switch] $SubmitBlankFirst
+        )
 
         Set-Content -LiteralPath (Join-Path $fixtureRoot "scenario.txt") -Value $Scenario
         Set-Content -LiteralPath (Join-Path $fixtureRoot "phases.txt") -Value "" -NoNewline
         $savedTemp = $env:TEMP
         try {
             $env:TEMP = Join-Path $fixtureRoot "logs"
-            $output = @(& $windowsPowerShell -NoLogo -NoProfile -ExecutionPolicy Bypass `
-                -File (Join-Path $fixtureRoot "Install.ps1") -Profile WORK -Preset $Preset `
+            $choice = switch ($Mode) {
+                "CONFIGURE_AND_INSTALL" { "a" }
+                "CONFIGURE_ONLY" { "o" }
+                "FULL" { "f" }
+                default { throw "Unknown fixture selection: $Mode" }
+            }
+            $responses = if ($SubmitBlankFirst) { @("", $choice) } else { @($choice) }
+            # Answer the real mode prompt; the imported fixture modules ensure
+            # that no Windows changes or application installs can take place.
+            $output = @($responses | & $windowsPowerShell -NoLogo -NoProfile -OutputFormat Text -ExecutionPolicy Bypass `
+                -File (Join-Path $fixtureRoot "Install.ps1") -Profile WORK `
                 -SyncProvider OneDrive -SyncRoot $fixtureRoot -SkipConfirmation -NoPause 2>&1)
             $exitCode = $LASTEXITCODE
         }
@@ -85,16 +102,49 @@ function Initialize-SyncedProfile {
 }
 
 Describe "Installer outcomes" {
-    It "runs the expected phases for <Preset> and treats absence as success" -TestCases @(
-        @{ Preset = "FULL"; Expected = "InitializeSync,Applications,Defaults,System,Removal" }
-        @{ Preset = "SYSTEM_AND_APPS"; Expected = "Applications,Defaults,System,Removal" }
-        @{ Preset = "SYSTEM_ONLY"; Expected = "System,Removal" }
+    It "runs the expected phases for <Mode> and treats absence as success" -TestCases @(
+        @{ Mode = "CONFIGURE_AND_INSTALL"; Expected = "Applications,Defaults,System,FancyZones,Removal" }
+        @{ Mode = "CONFIGURE_ONLY"; Expected = "System,Removal" }
+        @{ Mode = "FULL"; Expected = "InitializeSync,Applications,Defaults,System,FancyZones,Removal" }
     ) {
-        param($Preset, $Expected)
-        $result = Invoke-InstallerFixture -Preset $Preset
+        param($Mode, $Expected)
+        $result = Invoke-InstallerFixture -Mode $Mode
         $result.ExitCode | Should -Be 0
         ($result.Phases -join ",") | Should -Be $Expected
+        $result.Output | Should -Match "Mode:\s+$Mode"
         $result.Transcript | Should -Match '\[OK\] Setup completed\.'
+    }
+
+    It "rejects the removed <Parameter> CLI parameter before setup" -TestCases @(
+        @{ Parameter = "-Preset"; Value = "FULL" }
+        @{ Parameter = "-Mode"; Value = "CONFIGURE_AND_INSTALL" }
+    ) {
+        param($Parameter, $Value)
+        $removedArgument = @($Parameter, $Value)
+        Set-Content -LiteralPath (Join-Path $fixtureRoot "phases.txt") -Value "" -NoNewline
+        $savedErrorAction = $ErrorActionPreference
+        try {
+            # Windows PowerShell represents native stderr as error records.
+            # Collect the expected binding error instead of terminating the test.
+            $ErrorActionPreference = "Continue"
+            $output = @("a" | & $windowsPowerShell -NoLogo -NoProfile -OutputFormat Text -ExecutionPolicy Bypass `
+                -File (Join-Path $fixtureRoot "Install.ps1") -Profile WORK @removedArgument `
+                -SkipConfirmation -NoPause 2>&1)
+            $exitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $savedErrorAction
+        }
+        $exitCode | Should -Not -Be 0
+        ($output -join "`n") | Should -Match 'NamedParameterNotFound'
+        @(Get-Content -LiteralPath (Join-Path $fixtureRoot "phases.txt")).Count | Should -Be 0
+    }
+
+    It "requires an explicit mode choice even when confirmation is skipped" {
+        $result = Invoke-InstallerFixture -Mode CONFIGURE_ONLY -SubmitBlankFirst
+        $result.ExitCode | Should -Be 0
+        ($result.Phases -join ",") | Should -Be "System,Removal"
+        $result.Output | Should -Match 'Mode:\s+CONFIGURE_ONLY'
     }
 
     It "collects failures across phases and returns partial completion" {
@@ -108,7 +158,7 @@ Describe "Installer outcomes" {
     }
 
     It "includes repository application settings failures without requiring sync" {
-        $result = Invoke-InstallerFixture -Preset SYSTEM_AND_APPS -Scenario defaults-warning
+        $result = Invoke-InstallerFixture -Mode CONFIGURE_AND_INSTALL -Scenario defaults-warning
         $result.ExitCode | Should -Be 2
         $result.Output | Should -Match 'Application settings failed in fixture'
     }

@@ -12,6 +12,7 @@
         "Remove-UnwantedSoftware"
         "Restart-SetupAsAdministrator"
         "Set-RepositoryApplicationDefaults"
+        "Set-RepositoryFancyZonesLayout"
     )
     CmdletsToExport = @()
     VariablesToExport = @()

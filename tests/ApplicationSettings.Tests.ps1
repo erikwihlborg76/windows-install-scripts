@@ -11,6 +11,7 @@ Describe "Repository application settings" {
         $env:LOCALAPPDATA = Join-Path $TestDrive ([guid]::NewGuid().ToString("N") + "\Local")
         New-Item -ItemType Directory -Path $env:APPDATA, $env:LOCALAPPDATA -Force | Out-Null
         Mock Get-Process -ModuleName SystemSetup { @() }
+        Mock Set-XMouseStartupShortcut -ModuleName SystemSetup {}
         Mock Write-Warning -ModuleName SystemSetup {}
     }
 
@@ -151,6 +152,48 @@ Describe "Repository application settings" {
             $directory = Join-Path $Root "directory.json"
             New-Item -ItemType Directory -Path $directory | Out-Null
             { Copy-RepositoryApplicationFile -Source $source -Destination $directory } | Should -Throw '*directory or filesystem link*'
+        }
+    }
+}
+
+Describe "X-Mouse Button Control Startup shortcut" {
+    It "creates a current-user shortcut for an installed app and leaves it unchanged on rerun" {
+        InModuleScope SystemSetup -Parameters @{ Root = $TestDrive } {
+            param($Root)
+            $programs = Join-Path $Root "Program Files (x86)"
+            $startup = Join-Path $Root "User Startup"
+            $executable = Join-Path $programs "Highresolution Enterprises\X-Mouse Button Control\XMouseButtonControl.exe"
+            New-Item -ItemType Directory -Path (Split-Path $executable) -Force | Out-Null
+            [IO.File]::WriteAllText($executable, "fixture; never executed")
+            $searchRoots = @((Join-Path $Root "Program Files"), $programs)
+            Set-XMouseStartupShortcut -ProgramDirectories $searchRoots -StartupDirectory $startup
+            $shortcutPath = Join-Path $startup "X-Mouse Button Control.lnk"
+            Test-Path -LiteralPath $shortcutPath -PathType Leaf | Should -BeTrue
+            $shell = $null
+            $shortcut = $null
+            try {
+                $shell = New-Object -ComObject WScript.Shell
+                $shortcut = $shell.CreateShortcut($shortcutPath)
+                $shortcut.TargetPath | Should -Be $executable
+                $shortcut.Arguments | Should -Be "/notportable /delay /NoLog"
+                $shortcut.WorkingDirectory | Should -Be (Split-Path $executable)
+            }
+            finally {
+                if ($shortcut) { [void] [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shortcut) }
+                if ($shell) { [void] [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell) }
+            }
+            $writeTime = [IO.File]::GetLastWriteTimeUtc($shortcutPath)
+            Set-XMouseStartupShortcut -ProgramDirectories $searchRoots -StartupDirectory $startup
+            [IO.File]::GetLastWriteTimeUtc($shortcutPath) | Should -Be $writeTime
+        }
+    }
+
+    It "creates no shortcut or Startup directory when the app is absent" {
+        InModuleScope SystemSetup -Parameters @{ Root = $TestDrive } {
+            param($Root)
+            $startup = Join-Path $Root "Absent App Startup"
+            Set-XMouseStartupShortcut -ProgramDirectories @((Join-Path $Root "Missing Programs")) -StartupDirectory $startup
+            Test-Path -LiteralPath $startup | Should -BeFalse
         }
     }
 }

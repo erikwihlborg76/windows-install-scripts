@@ -132,6 +132,54 @@ function Copy-RepositoryApplicationFile {
     Write-Host "[OK] Applied repository settings to '$Destination'."
 }
 
+function Set-XMouseStartupShortcut {
+    param(
+        [Parameter()]
+        [string[]] $ProgramDirectories = @($env:ProgramW6432, $env:ProgramFiles, ${env:ProgramFiles(x86)}),
+
+        [Parameter()]
+        [string] $StartupDirectory = [Environment]::GetFolderPath("Startup")
+    )
+
+    $executable = $ProgramDirectories |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        Select-Object -Unique |
+        ForEach-Object { Join-Path $_ "Highresolution Enterprises\X-Mouse Button Control\XMouseButtonControl.exe" } |
+        Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+        Select-Object -First 1
+    if (-not $executable) {
+        Write-Host "[SKIP] X-Mouse Button Control is not installed; no Startup shortcut was created."
+        return
+    }
+    if ([string]::IsNullOrWhiteSpace($StartupDirectory)) {
+        throw "The current user's Startup folder could not be resolved."
+    }
+
+    New-Item -ItemType Directory -Path $StartupDirectory -Force -ErrorAction Stop | Out-Null
+    $shortcutPath = Join-Path $StartupDirectory "X-Mouse Button Control.lnk"
+    $arguments = "/notportable /delay /NoLog"
+    $workingDirectory = Split-Path -Parent $executable
+    $shell = $null
+    $shortcut = $null
+    try {
+        $shell = New-Object -ComObject WScript.Shell -ErrorAction Stop
+        $shortcut = $shell.CreateShortcut($shortcutPath)
+        if ($shortcut.TargetPath -eq $executable -and $shortcut.Arguments -eq $arguments -and
+            $shortcut.WorkingDirectory -eq $workingDirectory) {
+            return
+        }
+        $shortcut.TargetPath = $executable
+        $shortcut.Arguments = $arguments
+        $shortcut.WorkingDirectory = $workingDirectory
+        $shortcut.Save()
+        Write-Host "[OK] Created X-Mouse Button Control Startup shortcut: '$shortcutPath'."
+    }
+    finally {
+        if ($shortcut) { [void] [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shortcut) }
+        if ($shell) { [void] [Runtime.InteropServices.Marshal]::FinalReleaseComObject($shell) }
+    }
+}
+
 function Set-RepositoryApplicationSettings {
     param(
         [Parameter(Mandatory)]
@@ -205,5 +253,12 @@ function Set-RepositoryApplicationSettings {
                 Write-Warning "Failed to apply $($application.Name) settings: $($_.Exception.Message)"
             }
         }
+    }
+
+    try {
+        Set-XMouseStartupShortcut
+    }
+    catch {
+        Write-Warning "Failed to create X-Mouse Button Control Startup shortcut: $($_.Exception.Message)"
     }
 }
