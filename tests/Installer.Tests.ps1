@@ -64,8 +64,11 @@ function Initialize-SyncedProfile {
     function Invoke-InstallerFixture {
         param(
             [string] $Mode = "CONFIGURE_AND_INSTALL",
+            [ValidateSet("HOME", "WORK")]
+            [string] $Profile = "WORK",
             [string] $Scenario = "success",
-            [switch] $SubmitBlankFirst
+            [switch] $SubmitBlankFirst,
+            [switch] $SubmitBlankProfileFirst
         )
 
         Set-Content -LiteralPath (Join-Path $fixtureRoot "scenario.txt") -Value $Scenario
@@ -79,11 +82,13 @@ function Initialize-SyncedProfile {
                 "FULL" { "f" }
                 default { throw "Unknown fixture selection: $Mode" }
             }
-            $responses = if ($SubmitBlankFirst) { @("", $choice) } else { @($choice) }
-            # Answer the real mode prompt; the imported fixture modules ensure
+            [string[]] $responses = if ($SubmitBlankFirst) { @("", $choice) } else { @($choice) }
+            if ($SubmitBlankProfileFirst) { $responses += "" }
+            $responses += $Profile.Substring(0, 1)
+            # Answer the real mode and profile prompts; the fixture modules ensure
             # that no Windows changes or application installs can take place.
             $output = @($responses | & $windowsPowerShell -NoLogo -NoProfile -OutputFormat Text -ExecutionPolicy Bypass `
-                -File (Join-Path $fixtureRoot "Install.ps1") -Profile WORK `
+                -File (Join-Path $fixtureRoot "Install.ps1") `
                 -SyncProvider OneDrive -SyncRoot $fixtureRoot -SkipConfirmation -NoPause 2>&1)
             $exitCode = $LASTEXITCODE
         }
@@ -118,6 +123,7 @@ Describe "Installer outcomes" {
     It "rejects the removed <Parameter> CLI parameter before setup" -TestCases @(
         @{ Parameter = "-Preset"; Value = "FULL" }
         @{ Parameter = "-Mode"; Value = "CONFIGURE_AND_INSTALL" }
+        @{ Parameter = "-Profile"; Value = "WORK" }
     ) {
         param($Parameter, $Value)
         $removedArgument = @($Parameter, $Value)
@@ -128,7 +134,7 @@ Describe "Installer outcomes" {
             # Collect the expected binding error instead of terminating the test.
             $ErrorActionPreference = "Continue"
             $output = @("a" | & $windowsPowerShell -NoLogo -NoProfile -OutputFormat Text -ExecutionPolicy Bypass `
-                -File (Join-Path $fixtureRoot "Install.ps1") -Profile WORK @removedArgument `
+                -File (Join-Path $fixtureRoot "Install.ps1") @removedArgument `
                 -SkipConfirmation -NoPause 2>&1)
             $exitCode = $LASTEXITCODE
         }
@@ -145,6 +151,24 @@ Describe "Installer outcomes" {
         $result.ExitCode | Should -Be 0
         ($result.Phases -join ",") | Should -Be "System,Removal"
         $result.Output | Should -Match 'Mode:\s+CONFIGURE_ONLY'
+    }
+
+    It "uses the interactive <Profile> choice when confirmation is skipped" -TestCases @(
+        @{ Profile = "HOME" }
+        @{ Profile = "WORK" }
+    ) {
+        param($Profile)
+        $result = Invoke-InstallerFixture -Mode CONFIGURE_ONLY -Profile $Profile
+        $result.ExitCode | Should -Be 0
+        $result.Output | Should -Match "Profile:\s+$Profile"
+        ($result.Phases -join ",") | Should -Be "System,Removal"
+    }
+
+    It "requires an explicit profile choice instead of accepting a blank response" {
+        $result = Invoke-InstallerFixture -Mode CONFIGURE_ONLY -Profile WORK -SubmitBlankProfileFirst
+        $result.ExitCode | Should -Be 0
+        $result.Output | Should -Match 'Profile:\s+WORK'
+        ($result.Phases -join ",") | Should -Be "System,Removal"
     }
 
     It "collects failures across phases and returns partial completion" {

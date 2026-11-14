@@ -1,22 +1,25 @@
 # Personal setup with FULL
 
+[Back to the README](../README.md).
+
 `FULL` is the author's personal workflow. It applies the same Windows configuration,
 application installation, and repository preferences as `CONFIGURE_AND_INSTALL`,
-and also uses private files from OneDrive or Dropbox. The sync links are prepared
-before application installation. Choose either general setup mode if you do not
-have this private folder layout.
+and also uses private OneDrive or Dropbox files for OpenHue, Total Commander, SSH
+configuration, and personal Start menu shortcuts. Those files are not included in
+this repository. The sync links are prepared before application installation.
+Choose either general setup mode if you do not have this private folder layout.
 
 From the repository root:
 
 ```powershell
-.\Install.ps1 -Profile HOME -SyncProvider OneDrive
-.\Install.ps1 -Profile WORK -SyncProvider Dropbox
+.\Install.ps1 -SyncProvider OneDrive
+.\Install.ps1 -SyncProvider Dropbox
 ```
 
-Select `FULL` at the mode prompt each time. Use `-SyncRoot 'D:\My sync folder'` to
-override provider discovery. Both `Apps` and `Apps-data` must exist under that root,
-even if individual application sources are
-missing. Optional sources are skipped; existing normal folders are preserved
+Select `FULL` at the mode prompt and `HOME` or `WORK` at the profile prompt each
+time. Use `-SyncRoot 'D:\My sync folder'` to override provider discovery. Both `Apps`
+and `Apps-data` must exist under that root, even if individual application sources
+are missing. Optional sources are skipped; existing normal folders are preserved
 rather than replaced with links.
 
 ## Sync layout

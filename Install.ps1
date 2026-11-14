@@ -1,10 +1,6 @@
 [CmdletBinding()]
 param(
     [Parameter()]
-    [ValidateSet("HOME", "WORK")]
-    [string] $Profile,
-
-    [Parameter()]
     [ValidateSet("OneDriveBusiness", "OneDrive", "Dropbox")]
     [string] $SyncProvider,
 
@@ -85,14 +81,13 @@ try {
 
     $Mode = @("CONFIGURE_AND_INSTALL", "CONFIGURE_ONLY", "FULL")[$modeChoice]
 
-    if ([string]::IsNullOrWhiteSpace($Profile)) {
-        $profileChoice = Read-SetupChoice `
-            -Caption "Select profile" `
-            -Message "Choose the HOME or WORK configuration overlay." `
-            -Labels @("&HOME", "&WORK")
+    $profileChoice = Read-SetupChoice `
+        -Caption "Select profile" `
+        -Message "Choose the HOME or WORK configuration overlay." `
+        -Labels @("&HOME", "&WORK") `
+        -DefaultChoice -1
 
-        $Profile = @("HOME", "WORK")[$profileChoice]
-    }
+    $Profile = @("HOME", "WORK")[$profileChoice]
 
     $commonConfiguration = $configuration.Common
     $profileConfiguration = $configuration[$Profile]

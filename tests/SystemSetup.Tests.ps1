@@ -204,9 +204,9 @@ Describe "Elevation handoff" {
         $childPath = Join-Path $childDirectory "Install.ps1"
         $resultPath = Join-Path $TestDrive "arguments.json"
         $childScript = @'
-param([string] $Profile, [string] $SyncRoot, [switch] $NoPause, [switch] $SkipConfirmation)
+param([string] $SyncProvider, [string] $SyncRoot, [switch] $NoPause, [switch] $SkipConfirmation)
 [pscustomobject] @{
-    Profile = $Profile
+    SyncProvider = $SyncProvider
     SyncRoot = $SyncRoot
     NoPause = $NoPause.IsPresent
     SkipConfirmation = $SkipConfirmation.IsPresent
@@ -225,7 +225,7 @@ exit 23
                 [pscustomobject] @{ ExitCode = $LASTEXITCODE }
             }
             $exitCode = Restart-SetupAsAdministrator -ScriptPath $ChildPath -BoundParameters @{
-                Profile = "WORK"
+                SyncProvider = "OneDrive"
                 SyncRoot = 'C:\Erik''s $files\cloud\'
                 NoPause = [Management.Automation.SwitchParameter]::new($true)
                 SkipConfirmation = [Management.Automation.SwitchParameter]::new($false)
@@ -237,7 +237,7 @@ exit 23
         }
 
         $arguments = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
-        $arguments.Profile | Should -Be "WORK"
+        $arguments.SyncProvider | Should -Be "OneDrive"
         $arguments.SyncRoot | Should -Be 'C:\Erik''s $files\cloud\'
         $arguments.NoPause | Should -BeTrue
         $arguments.SkipConfirmation | Should -BeFalse
