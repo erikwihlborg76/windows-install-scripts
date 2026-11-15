@@ -69,10 +69,7 @@ function Set-RepositoryFancyZonesLayout {
         $startingDesktop = $current.ExitCode
         $activeDesktop = $startingDesktop
         $switchAttempted = $false
-        $switchOptions = @("/Quiet")
-        if ([IO.Path]::GetFileName($desktopCli) -like "VirtualDesktop11*") {
-            $switchOptions += "/Animation:Off"
-        }
+        $switchOptions = @("/Quiet", "/Animation:Off")
         try {
             for ($index = 0; $index -lt $count.ExitCode; $index++) {
                 if ($index -ne $activeDesktop) {

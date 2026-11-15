@@ -25,14 +25,6 @@ $resourcesRoot = Join-Path $PSScriptRoot "resources"
 Import-Module $systemModule -Force -ErrorAction Stop
 Import-Module $syncModule -Force -ErrorAction Stop
 
-$elevatedExitCode = Restart-SetupAsAdministrator `
-    -ScriptPath $PSCommandPath `
-    -BoundParameters $PSBoundParameters
-
-if ($null -ne $elevatedExitCode) {
-    exit $elevatedExitCode
-}
-
 function Read-SetupChoice {
     param(
         [Parameter(Mandatory)]
@@ -45,19 +37,66 @@ function Read-SetupChoice {
         [string[]] $Labels,
 
         [Parameter()]
+        [string[]] $Descriptions = @(),
+
+        [Parameter()]
         [int] $DefaultChoice = 0
     )
 
     $choices = @(
         foreach ($label in $Labels) {
-            [Management.Automation.Host.ChoiceDescription]::new($label)
+            $marker = $label.IndexOf("&")
+            [pscustomobject] @{
+                Key = $label.Substring($marker + 1, 1).ToUpperInvariant()
+                Label = $label.Replace("&", "")
+            }
         }
     )
 
-    return $Host.UI.PromptForChoice($Caption, $Message, $choices, $DefaultChoice)
+    Write-Host ""
+    Write-Host $Caption -ForegroundColor Cyan
+    Write-Host $Message
+    Write-Host ""
+    for ($index = 0; $index -lt $choices.Count; $index++) {
+        Write-Host ("  [{0}] {1}" -f $choices[$index].Key, $choices[$index].Label)
+        if ($index -lt $Descriptions.Count -and $Descriptions[$index]) {
+            Write-Host "      $($Descriptions[$index])"
+        }
+        Write-Host ""
+    }
+
+    $prompt = "Choose " + ($choices.Key -join "/")
+    if ($DefaultChoice -ge 0) {
+        $prompt += " (Enter for $($choices[$DefaultChoice].Key))"
+    }
+    while ($true) {
+        $answer = Read-Host $prompt
+        if ($null -eq $answer) {
+            throw "No selection received. Run the installer in an interactive PowerShell window."
+        }
+        if ([string]::IsNullOrWhiteSpace($answer) -and $DefaultChoice -ge 0) {
+            return $DefaultChoice
+        }
+        for ($index = 0; $index -lt $choices.Count; $index++) {
+            if ($answer.Trim() -eq $choices[$index].Key -or $answer.Trim() -eq $choices[$index].Label) {
+                return $index
+            }
+        }
+        Write-Host "Enter one of the letters shown above." -ForegroundColor Yellow
+    }
 }
 
 try {
+    Assert-Windows11
+
+    $elevatedExitCode = Restart-SetupAsAdministrator `
+        -ScriptPath $PSCommandPath `
+        -BoundParameters $PSBoundParameters
+
+    if ($null -ne $elevatedExitCode) {
+        exit $elevatedExitCode
+    }
+
     Assert-WinGet
 
     if (-not (Test-Path -LiteralPath $profileDataPath -PathType Leaf)) {
@@ -70,21 +109,30 @@ try {
     $configuration = Import-PowerShellDataFile -LiteralPath $profileDataPath
 
     $modeChoice = Read-SetupChoice `
-        -Caption "Select setup mode" `
-        -Message "Choose whether to apply Windows configuration and install applications." `
+        -Caption "Set up this PC" `
+        -Message "Choose what to include." `
         -Labels @(
-            "Configure Windows and install &apps"
-            "Configure Windows &only - settings and app removal"
-            "&Full - author's personal setup, including private sync files"
+            "Configure Windows + &apps"
+            "Configure Windows &only"
+            "&Full personal setup"
+        ) `
+        -Descriptions @(
+            "Windows settings, selected app removal, and the app bundle."
+            "Windows settings and selected app removal."
+            "Configuration, apps, and the author's private sync files."
         ) `
         -DefaultChoice -1
 
     $Mode = @("CONFIGURE_AND_INSTALL", "CONFIGURE_ONLY", "FULL")[$modeChoice]
 
     $profileChoice = Read-SetupChoice `
-        -Caption "Select profile" `
-        -Message "Choose the HOME or WORK configuration overlay." `
-        -Labels @("&HOME", "&WORK") `
+        -Caption "PC profile" `
+        -Message "What will you use this PC for?" `
+        -Labels @("&Home", "&Work") `
+        -Descriptions @(
+            "Personal PC settings, with an option to rename this PC."
+            "Work PC settings with Plan, Work, Meet, and Play desktops."
+        ) `
         -DefaultChoice -1
 
     $Profile = @("HOME", "WORK")[$profileChoice]
@@ -102,9 +150,14 @@ try {
     if ($useSyncProfile) {
         if ([string]::IsNullOrWhiteSpace($SyncProvider)) {
             $providerChoice = Read-SetupChoice `
-                -Caption "Select sync provider" `
-                -Message "Choose the provider containing the Apps and Apps-data folders." `
-                -Labels @("OneDrive &Business", "&OneDrive", "&Dropbox")
+                -Caption "Personal files" `
+                -Message "Where are your Apps and Apps-data folders?" `
+                -Labels @("OneDrive &Business", "&OneDrive", "&Dropbox") `
+                -Descriptions @(
+                    "Your organization's OneDrive folder."
+                    "Your personal OneDrive folder."
+                    "Your Dropbox folder."
+                )
 
             $SyncProvider = @("OneDriveBusiness", "OneDrive", "Dropbox")[$providerChoice]
         }
@@ -127,8 +180,8 @@ try {
 
     if (-not $SkipConfirmation) {
         $confirmation = Read-SetupChoice `
-            -Caption "Confirm setup" `
-            -Message "Apply this setup plan?" `
+            -Caption "Ready to start?" `
+            -Message "Apply the setup plan shown above?" `
             -Labels @("&Yes", "&No")
 
         if ($confirmation -ne 0) {

@@ -36,7 +36,6 @@
             @{ Path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced";                         Name = "Start_IrisRecommendations";                    Type = "DWord";        Value = 0 }
             @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer";                                        Name = "HideRecommendedSection";                       Type = "DWord";        Value = 1 }
             @{ Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer";                         Name = "AllowOnlineTips";                              Type = "DWord";        Value = 0 }
-            @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds";                                   Name = "EnableFeeds";                                  Type = "DWord";        Value = 0 }
             @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System";                                          Name = "DisableLockScreenAppNotifications";            Type = "DWord";        Value = 1 }
             @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent";                                    Name = "DisableWindowsConsumerFeatures";               Type = "DWord";        Value = 1 }
 
@@ -61,11 +60,9 @@
             @{ Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System";                           Name = "DisableStartupSound";                          Type = "DWord";        Value = 1 }
             @{ Path = "HKCU:\AppEvents\Schemes";                                                                   Name = "";                                             Type = "String";       Value = ".None" }
 
-            # AutoRun and legacy networking
+            # AutoRun
             @{ Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer";                         Name = "NoAutorun";                                    Type = "DWord";        Value = 1 }
             @{ Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer";                         Name = "NoDriveTypeAutoRun";                           Type = "DWord";        Value = 255 }
-            @{ Path = "HKLM:\Software\Policies\Microsoft\Windows\HomeGroup";                                       Name = "DisableHomeGroup";                             Type = "DWord";        Value = 1 }
-            @{ Path = "HKLM:\Software\Policies\Microsoft\Peernet";                                                 Name = "Disabled";                                     Type = "DWord";        Value = 1 }
         )
 
         # Applied only when installing the application bundle.

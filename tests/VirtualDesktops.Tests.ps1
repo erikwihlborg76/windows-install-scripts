@@ -81,12 +81,30 @@ Describe "Profile virtual desktops" {
 }
 
 Describe "Pinned virtual desktop CLI" {
+    It "rejects build <Build> (<Edition>) before downloading or using a desktop tool" -TestCases @(
+        @{ Build = 19045; Edition = "Client" }
+        @{ Build = 20348; Edition = "Server" }
+        @{ Build = 26100; Edition = "Server" }
+    ) {
+        param($Build, $Edition)
+        InModuleScope SystemSetup -Parameters @{ Build = $Build; Edition = $Edition; Root = $TestDrive } {
+            param($Build, $Edition, $Root)
+            $script:fixtureBuild = $Build
+            $script:fixtureEdition = $Edition
+            Mock Get-ItemProperty { [pscustomobject] @{ CurrentBuildNumber = $script:fixtureBuild; InstallationType = $script:fixtureEdition } }
+            Mock Invoke-WebRequest { throw "Must not download" }
+            Mock Get-FileHash { throw "Must not use a cached tool" }
+            { Get-VirtualDesktopTool -ToolsRoot $Root } | Should -Throw '*requires Windows 11*'
+            Should -Invoke Invoke-WebRequest -Times 0 -Exactly
+            Should -Invoke Get-FileHash -Times 0 -Exactly
+        }
+    }
+
     It "selects the cached executable for build <Build> (<Edition>) and checks its hash" -TestCases @(
-        @{ Build = 19045; Edition = "Client"; File = "VirtualDesktop.exe"; Hash = "1B05D47C393BFED4453112672CBAF852F803BFEDFB9BBA2840D2ABADA1995C7E" }
+        @{ Build = 22000; Edition = "Client"; File = "VirtualDesktop11.exe"; Hash = "F6532DB79F6F0E4018CE77F08805D3FD3F7BB076CBFBAC0AC8189FE5376D9E82" }
         @{ Build = 22631; Edition = "Client"; File = "VirtualDesktop11.exe"; Hash = "F6532DB79F6F0E4018CE77F08805D3FD3F7BB076CBFBAC0AC8189FE5376D9E82" }
         @{ Build = 26100; Edition = "Client"; File = "VirtualDesktop11-24H2.exe"; Hash = "8334B529D19E71662950821C91ED996A0E92DF41C8D0A077E95151AA7041CB35" }
-        @{ Build = 20348; Edition = "Server"; File = "VirtualDesktopServer2022.exe"; Hash = "D7D0D508B0E049DC0B08191AD50BF876B71724DF57ECBF5575675BF6E7B04747" }
-        @{ Build = 26100; Edition = "Server"; File = "VirtualDesktop11-24H2.exe"; Hash = "8334B529D19E71662950821C91ED996A0E92DF41C8D0A077E95151AA7041CB35" }
+        @{ Build = 26300; Edition = "Client"; File = "VirtualDesktop11-24H2.exe"; Hash = "8334B529D19E71662950821C91ED996A0E92DF41C8D0A077E95151AA7041CB35" }
     ) {
         param($Build, $Edition, $File, $Hash)
         InModuleScope SystemSetup -Parameters @{ Build = $Build; Edition = $Edition; File = $File; Hash = $Hash; Root = $TestDrive } {

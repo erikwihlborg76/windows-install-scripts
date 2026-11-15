@@ -1,6 +1,6 @@
 # Windows Install Scripts
 
-Opinionated, interactive provisioning for personal and work Windows computers.
+Opinionated, interactive provisioning for personal and work Windows 11 computers.
 
 ## Quick start
 

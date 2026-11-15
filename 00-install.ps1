@@ -5,6 +5,13 @@
 & {
     $ErrorActionPreference = "Stop"
 
+    $windows = Get-ItemProperty -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" -ErrorAction Stop
+    $build = 0
+    if (-not [int]::TryParse([string] $windows.CurrentBuildNumber, [ref] $build) -or
+        $windows.InstallationType -ne "Client" -or $build -lt 22000) {
+        throw "This installer requires Windows 11. Detected '$($windows.ProductName)' ($($windows.InstallationType), build '$($windows.CurrentBuildNumber)')."
+    }
+
     # Set these environment variables only when testing a fork or a non-main ref.
     $repository = if ($env:INSTALL_REPOSITORY) { $env:INSTALL_REPOSITORY } else { "erikwihlborg76/windows-install-scripts" }
     $ref = if ($env:INSTALL_REF) { $env:INSTALL_REF } else { "main" }

@@ -21,4 +21,10 @@ Describe "Profile intent" {
             @($configuration.WORK.Registry)
         @($settings | Where-Object { $_.Name -eq "AllowTelemetry" }) | Should -HaveCount 0
     }
+
+    It "omits obsolete feeds, HomeGroup, and peer networking settings" {
+        @($configuration.Common.Registry | Where-Object {
+            $_.Name -in @("EnableFeeds", "DisableHomeGroup") -or $_.Path -like '*\Peernet'
+        }) | Should -HaveCount 0
+    }
 }

@@ -2,6 +2,10 @@
 
 [Back to the README](../README.md).
 
+The installer supports Windows 11 client installations only. It checks the actual
+OS build and installation type before elevation or setup. Windows 10 and Windows
+Server are rejected, including Server builds that share a build number with Windows 11.
+
 ## What setup changes
 
 Every mode applies the registry settings and Local Group Policy in this repository,
@@ -20,8 +24,11 @@ Both profiles aim to remove distractions from the Windows UI: Start recommendati
 feeds, search suggestions, tips, and extra animations and sounds. The
 [Windows settings](../config/Profiles.psd1) are paired with
 [Edge policies](../resources/LGPO/global_policy_objects.txt) that target the same goal
-in the browser, suppressing new-tab content, shopping and Rewards features, and
-sidebar/Copilot entry points. Availability depends on the Windows and Edge versions.
+in the browser. Edge uses Google search and a blank new-tab page, with shopping,
+Rewards, recommendations, default-browser/Bing campaigns, AutoFill prompts, and
+sidebar/Copilot entry points suppressed. Windows policies also suppress Search
+highlights, account prompts, feedback requests, and Spotlight suggestions.
+Availability depends on the Windows edition, Edge version, and account type.
 
 **Edge policy limits:**
 
@@ -50,9 +57,8 @@ extra desktops are preserved, and reruns do not add duplicates. `HOME` skips thi
 The first WORK run downloads the [VirtualDesktop CLI](https://github.com/MScholtes/VirtualDesktop)
 version 1.21 for the Windows build and verifies its SHA-256 checksum before use.
 The tool is cached under `%LOCALAPPDATA%\WindowsInstallScripts\Tools\VirtualDesktop`.
-This step requires Windows 10 2004 or later, Windows 11, or a compatible desktop
-Windows Server installation. An unsupported shell API or failed download is reported
-as a setup warning.
+The Windows 11 executable is selected for pre-24H2 or 24H2-and-later builds. An
+unsupported shell API or failed download is reported as a setup warning.
 
 `CONFIGURE_ONLY` creates the WORK desktops but skips application installation,
 mouse mappings, and FancyZones layout application. In application-install modes,
@@ -74,3 +80,6 @@ See the [productivity setup](../README.md#productivity-setup) for the layout and
 
 The `AllowTelemetry` policy is owned by the LGPO resource rather than duplicated
 in the registry configuration. Review both when changing privacy settings.
+
+See [distraction-control policies](policy-options.md) for the configured Windows 11
+and Edge controls, Google search settings, and their support limits.

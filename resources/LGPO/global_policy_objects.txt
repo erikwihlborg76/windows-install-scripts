@@ -1,6 +1,7 @@
 ; ----------------------------------------------------------------------
-; PARSING Computer POLICY
+; Computer and user policies shared by HOME and WORK.
 ; Public installer policy configuration for LGPO.exe /t.
+; Unsupported policies are ignored by Windows/Edge; see docs/policy-options.md.
 
 Computer
 SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer
@@ -34,6 +35,21 @@ DWORD:1
 
 Computer
 SOFTWARE\Policies\Microsoft\Edge
+DefaultSearchProviderName
+SZ:Google
+
+Computer
+SOFTWARE\Policies\Microsoft\Edge
+DefaultSearchProviderKeyword
+SZ:google.com
+
+Computer
+SOFTWARE\Policies\Microsoft\Edge
+NewTabPageSearchBox
+SZ:redirect
+
+Computer
+SOFTWARE\Policies\Microsoft\Edge
 EdgeWorkspacesEnabled
 DWORD:1
 
@@ -45,7 +61,7 @@ DWORD:1
 Computer
 SOFTWARE\Policies\Microsoft\Edge
 NewTabPageAppLauncherEnabled
-DWORD:1
+DWORD:0
 
 Computer
 SOFTWARE\Policies\Microsoft\Edge
@@ -75,7 +91,7 @@ DWORD:0
 Computer
 SOFTWARE\Policies\Microsoft\Edge
 AddressBarMicrosoftSearchInBingProviderEnabled
-DWORD:0
+DELETE
 
 Computer
 SOFTWARE\Policies\Microsoft\Edge
@@ -89,18 +105,13 @@ DWORD:1
 
 Computer
 SOFTWARE\Policies\Microsoft\Edge
-DefaultBrowserSettingEnabled
-DWORD:1
-
-Computer
-SOFTWARE\Policies\Microsoft\Edge
 DiagnosticData
 DELETE
 
 Computer
 SOFTWARE\Policies\Microsoft\Edge
 EdgeFollowEnabled
-DWORD:0
+DELETE
 
 Computer
 SOFTWARE\Policies\Microsoft\Edge
@@ -130,12 +141,12 @@ DWORD:0
 Computer
 SOFTWARE\Policies\Microsoft\Edge
 DefaultSearchProviderSearchURL
-SZ:{google:baseURL}search?q={searchTerms}&{google:RLZ}{google:originalQueryForSuggestion}{google:assistedQueryStats}{google:searchFieldtrialParameter}{google:searchClient}{google:sourceId}ie={inputEncoding}
+SZ:https://www.google.com/search?q={searchTerms}
 
 Computer
 SOFTWARE\Policies\Microsoft\Edge
 DefaultSearchProviderSuggestURL
-SZ:{google:baseURL}complete/search?output=chrome&q={searchTerms}
+SZ:https://www.google.com/complete/search?output=chrome&q={searchTerms}
 
 Computer
 SOFTWARE\Policies\Microsoft\Edge
@@ -329,7 +340,13 @@ SOFTWARE\Policies\Microsoft\Edge\SyncTypesListDisabled
 3
 SZ:edgeWallet
 
-; --- Added: recommended sign-in-safe Edge privacy/autofill/noise tweaks ---
+; --- Edge privacy, AutoFill, and distraction controls ---
+; Keep the older AutoFill switches for Edge versions before 154.
+
+Computer
+SOFTWARE\Policies\Microsoft\Edge
+AutofillSettings
+SZ:[{"url_pattern":"*","blocked_types":["all"]}]
 
 Computer
 SOFTWARE\Policies\Microsoft\Edge
@@ -359,6 +376,36 @@ DWORD:0
 Computer
 SOFTWARE\Policies\Microsoft\Edge
 ShowRecommendationsEnabled
+DWORD:0
+
+Computer
+SOFTWARE\Policies\Microsoft\Edge
+SpotlightExperiencesAndRecommendationsEnabled
+DWORD:0
+
+Computer
+SOFTWARE\Policies\Microsoft\Edge
+DefaultBrowserSettingsCampaignEnabled
+DWORD:0
+
+Computer
+SOFTWARE\Policies\Microsoft\Edge
+PinningWizardAllowed
+DWORD:0
+
+Computer
+SOFTWARE\Policies\Microsoft\Edge
+PersonalizationReportingEnabled
+DWORD:0
+
+Computer
+SOFTWARE\Policies\Microsoft\Edge
+ShowPDFDefaultRecommendationsEnabled
+DWORD:0
+
+Computer
+SOFTWARE\Policies\Microsoft\Edge
+MicrosoftEdgeInsiderPromotionEnabled
 DWORD:0
 
 Computer
@@ -510,6 +557,71 @@ Computer
 SOFTWARE\Policies\Microsoft\Windows\DataCollection
 AllowTelemetry
 DWORD:0
+
+; --- Windows advertising, suggestions, and account notifications ---
+; User entries target HKCU through Local Group Policy's user configuration.
+
+Computer
+SOFTWARE\Policies\Microsoft\Windows\Windows Search
+EnableDynamicContentInWSB
+DWORD:0
+
+User
+SOFTWARE\Policies\Microsoft\Windows\CurrentVersion\AccountNotifications
+DisableAccountNotifications
+DWORD:1
+
+Computer
+SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo
+DisabledByGroupPolicy
+DWORD:1
+
+User
+SOFTWARE\Policies\Microsoft\Windows\CloudContent
+DisableTailoredExperiencesWithDiagnosticData
+DWORD:1
+
+User
+SOFTWARE\Policies\Microsoft\Windows\CloudContent
+DisableThirdPartySuggestions
+DWORD:1
+
+Computer
+SOFTWARE\Policies\Microsoft\Windows\DataCollection
+DoNotShowFeedbackNotifications
+DWORD:1
+
+; Enterprise/Education/IoT support varies; other editions may ignore these.
+
+User
+SOFTWARE\Policies\Microsoft\Windows\CloudContent
+DisableWindowsSpotlightFeatures
+DWORD:1
+
+User
+SOFTWARE\Policies\Microsoft\Windows\CloudContent
+DisableWindowsSpotlightOnSettings
+DWORD:1
+
+User
+SOFTWARE\Policies\Microsoft\Windows\CloudContent
+DisableWindowsSpotlightWindowsWelcomeExperience
+DWORD:1
+
+Computer
+SOFTWARE\Policies\Microsoft\Windows\CloudContent
+DisableSoftLanding
+DWORD:1
+
+Computer
+SOFTWARE\Policies\Microsoft\Windows\CloudContent
+DisableConsumerAccountStateContent
+DWORD:1
+
+Computer
+SOFTWARE\Policies\Microsoft\Windows\CloudContent
+DisableCloudOptimizedContent
+DWORD:1
 
 Computer
 SOFTWARE\Policies\Microsoft\Windows\Explorer

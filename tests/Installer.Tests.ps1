@@ -31,6 +31,10 @@ function Invoke-TestPhase {
     if ($Name -eq "Removal" -and $scenario -eq "success") { Write-Host "[SKIP] Already absent" }
 }
 function Restart-SetupAsAdministrator { param($ScriptPath, $BoundParameters); return $null }
+function Assert-Windows11 {
+    $scenario = Get-Content -LiteralPath (Join-Path $PSScriptRoot "..\..\scenario.txt")
+    if ($scenario -eq "unsupported-os") { throw "This installer requires Windows 11." }
+}
 function Assert-WinGet {}
 function Install-Applications {
     [CmdletBinding()] param($ConfigRoot, $CommonConfiguration, $ProfileConfiguration)
@@ -68,11 +72,13 @@ function Initialize-SyncedProfile {
             [string] $Profile = "WORK",
             [string] $Scenario = "success",
             [switch] $SubmitBlankFirst,
-            [switch] $SubmitBlankProfileFirst
+            [switch] $SubmitBlankProfileFirst,
+            [switch] $SubmitInvalidChoices
         )
 
         Set-Content -LiteralPath (Join-Path $fixtureRoot "scenario.txt") -Value $Scenario
         Set-Content -LiteralPath (Join-Path $fixtureRoot "phases.txt") -Value "" -NoNewline
+        $existingLogs = @(Get-ChildItem -LiteralPath (Join-Path $fixtureRoot "logs") -Filter "*.log" | Select-Object -ExpandProperty FullName)
         $savedTemp = $env:TEMP
         try {
             $env:TEMP = Join-Path $fixtureRoot "logs"
@@ -83,6 +89,7 @@ function Initialize-SyncedProfile {
                 default { throw "Unknown fixture selection: $Mode" }
             }
             [string[]] $responses = if ($SubmitBlankFirst) { @("", $choice) } else { @($choice) }
+            if ($SubmitInvalidChoices) { $responses = @("invalid") + $responses + @("invalid") }
             if ($SubmitBlankProfileFirst) { $responses += "" }
             $responses += $Profile.Substring(0, 1)
             # Answer the real mode and profile prompts; the fixture modules ensure
@@ -96,17 +103,49 @@ function Initialize-SyncedProfile {
             $env:TEMP = $savedTemp
         }
         $transcript = Get-ChildItem -LiteralPath (Join-Path $fixtureRoot "logs") -Filter "*.log" |
+            Where-Object { $_.FullName -notin $existingLogs } |
             Sort-Object Name -Descending | Select-Object -First 1
         [pscustomobject]@{
             ExitCode = $exitCode
             Output = $output -join "`n"
             Phases = @(Get-Content -LiteralPath (Join-Path $fixtureRoot "phases.txt"))
-            Transcript = Get-Content -LiteralPath $transcript.FullName -Raw
+            Transcript = if ($transcript) { Get-Content -LiteralPath $transcript.FullName -Raw } else { "" }
         }
     }
 }
 
+Describe "Bootstrap Windows 11 guard" {
+    It "rejects build <Build> / <InstallationType> before downloads, file creation, or elevation" -TestCases @(
+        @{ Build = "19045"; InstallationType = "Client" }
+        @{ Build = "20348"; InstallationType = "Server" }
+        @{ Build = "26100"; InstallationType = "Server" }
+        @{ Build = "unknown"; InstallationType = "Client" }
+    ) {
+        param($Build, $InstallationType)
+        $script:fixtureBootstrapBuild = $Build
+        $script:fixtureBootstrapInstallationType = $InstallationType
+        Mock Get-ItemProperty {
+            [pscustomobject] @{ CurrentBuildNumber = $script:fixtureBootstrapBuild; InstallationType = $script:fixtureBootstrapInstallationType; ProductName = "Fixture OS" }
+        }
+        Mock Invoke-WebRequest { throw "Must not download" }
+        Mock New-Item { throw "Must not create files" }
+        Mock Start-Process { throw "Must not request elevation" }
+        { . (Join-Path $repositoryRoot "00-install.ps1") } | Should -Throw '*requires Windows 11*'
+        Should -Invoke Invoke-WebRequest -Times 0 -Exactly
+        Should -Invoke New-Item -Times 0 -Exactly
+        Should -Invoke Start-Process -Times 0 -Exactly
+    }
+}
+
 Describe "Installer outcomes" {
+    It "rejects an unsupported OS before any setup phases or transcript" {
+        $result = Invoke-InstallerFixture -Scenario unsupported-os
+        $result.ExitCode | Should -Be 1
+        $result.Output | Should -Match 'requires Windows 11'
+        $result.Phases | Should -HaveCount 0
+        $result.Transcript | Should -BeNullOrEmpty
+    }
+
     It "runs the expected phases for <Mode> and treats absence as success" -TestCases @(
         @{ Mode = "CONFIGURE_AND_INSTALL"; Expected = "Applications,Defaults,System,FancyZones,Removal" }
         @{ Mode = "CONFIGURE_ONLY"; Expected = "System,Removal" }
@@ -167,6 +206,14 @@ Describe "Installer outcomes" {
     It "requires an explicit profile choice instead of accepting a blank response" {
         $result = Invoke-InstallerFixture -Mode CONFIGURE_ONLY -Profile WORK -SubmitBlankProfileFirst
         $result.ExitCode | Should -Be 0
+        $result.Output | Should -Match 'Profile:\s+WORK'
+        ($result.Phases -join ",") | Should -Be "System,Removal"
+    }
+
+    It "retries invalid mode and profile responses without changing the requested setup" {
+        $result = Invoke-InstallerFixture -Mode CONFIGURE_ONLY -Profile WORK -SubmitInvalidChoices
+        $result.ExitCode | Should -Be 0
+        $result.Output | Should -Match 'Mode:\s+CONFIGURE_ONLY'
         $result.Output | Should -Match 'Profile:\s+WORK'
         ($result.Phases -join ",") | Should -Be "System,Removal"
     }

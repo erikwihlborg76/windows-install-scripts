@@ -6,6 +6,7 @@ BeforeAll {
 Describe "SystemSetup public surface" {
     It "exports only the phase-level commands" {
         $expected = @(
+            "Assert-Windows11",
             "Assert-WinGet", "Install-Applications", "Invoke-SystemConfiguration",
             "Remove-UnwantedSoftware", "Restart-SetupAsAdministrator", "Set-RepositoryApplicationDefaults",
             "Set-RepositoryFancyZonesLayout"
@@ -15,7 +16,93 @@ Describe "SystemSetup public surface" {
     }
 }
 
+Describe "Windows 11 support" {
+    It "accepts Windows 11 client build <Build> using the OS build, not the PowerShell build" -TestCases @(
+        @{ Build = "22000" }
+        @{ Build = "22631" }
+        @{ Build = "26100" }
+        @{ Build = "26300" }
+    ) {
+        param($Build)
+        InModuleScope SystemSetup -Parameters @{ Build = $Build } {
+            param($Build)
+            $script:fixtureOsBuild = $Build
+            # Windows 11 can retain a Windows 10 ProductName in this key.
+            Mock Get-ItemProperty {
+                [pscustomobject] @{ CurrentBuildNumber = $script:fixtureOsBuild; InstallationType = "Client"; ProductName = "Windows 10 Pro" }
+            }
+            Get-Windows11Build | Should -Be ([int] $Build)
+            Assert-Windows11 | Should -BeNullOrEmpty
+        }
+    }
+
+    It "rejects unsupported or unknown OS metadata: <Build> / <InstallationType>" -TestCases @(
+        @{ Build = "19045"; InstallationType = "Client" }
+        @{ Build = "20348"; InstallationType = "Server" }
+        @{ Build = "26100"; InstallationType = "Server" }
+        @{ Build = "26100"; InstallationType = "Server Core" }
+        @{ Build = "26100"; InstallationType = "" }
+        @{ Build = "unknown"; InstallationType = "Client" }
+    ) {
+        param($Build, $InstallationType)
+        InModuleScope SystemSetup -Parameters @{ Build = $Build; InstallationType = $InstallationType } {
+            param($Build, $InstallationType)
+            $script:fixtureOsBuild = $Build
+            $script:fixtureInstallationType = $InstallationType
+            Mock Get-ItemProperty {
+                [pscustomobject] @{ CurrentBuildNumber = $script:fixtureOsBuild; InstallationType = $script:fixtureInstallationType; ProductName = "Fixture OS" }
+            }
+            { Assert-Windows11 } | Should -Throw '*requires Windows 11*'
+        }
+    }
+}
+
 Describe "Registry settings" {
+    It "warns on a <Failure> failure and applies settings after the denied write" -TestCases @(
+        @{ Failure = "UnauthorizedAccess" }
+        @{ Failure = "Security" }
+        @{ Failure = "ProviderPermissionDenied" }
+    ) {
+        param($Failure)
+        InModuleScope SystemSetup -Parameters @{ Failure = $Failure } {
+            param($Failure)
+            $script:fixtureRegistryFailure = $Failure
+            Mock New-ItemProperty {
+                switch ($script:fixtureRegistryFailure) {
+                    "UnauthorizedAccess" { throw [UnauthorizedAccessException]::new("Access denied in fixture") }
+                    "Security" { throw [Security.SecurityException]::new("Access denied in fixture") }
+                    "ProviderPermissionDenied" {
+                        Write-Error -Message "Access denied in fixture" -Category PermissionDenied -ErrorAction Stop
+                    }
+                }
+            } -ParameterFilter { $Name -eq "Blocked" }
+            Mock Write-Host {}
+            $path = "TestRegistry:\PermissionFailure"
+            $warnings = @()
+            Set-ConfiguredRegistryValues -Settings @(
+                @{ Path = $path; Name = "Before"; Type = "DWord"; Value = 1 }
+                @{ Path = $path; Name = "Blocked"; Type = "DWord"; Value = 0 }
+                @{ Path = $path; Name = "After"; Type = "String"; Value = "applied" }
+            ) -WarningVariable warnings -WarningAction SilentlyContinue
+
+            (Get-ItemProperty -LiteralPath $path).Before | Should -Be 1
+            (Get-ItemProperty -LiteralPath $path).After | Should -Be "applied"
+            $warnings | Should -HaveCount 1
+            $warnings[0].ToString() | Should -Match 'PermissionFailure\\Blocked.*Access denied in fixture'
+            Should -Invoke Write-Host -Times 1 -Exactly -ParameterFilter { $Object -eq "[OK] Applied 2 registry settings." }
+        }
+    }
+
+    It "still stops on unexpected registry failures" {
+        InModuleScope SystemSetup {
+            Mock Test-Path { $true }
+            Mock New-ItemProperty { throw [InvalidOperationException]::new("Unexpected registry failure") }
+            { Set-ConfiguredRegistryValues -Settings @(
+                @{ Path = "TestRegistry:\UnexpectedFailure"; Name = "Value"; Type = "DWord"; Value = 1 }
+            ) } | Should -Throw '*UnexpectedFailure\Value*Unexpected registry failure*'
+        }
+    }
+
     It "preserves unrelated values and descendants when typed settings are reapplied" {
         InModuleScope SystemSetup {
             $path = "TestRegistry:\Preserved"

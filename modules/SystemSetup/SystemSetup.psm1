@@ -4,6 +4,23 @@
 . (Join-Path $PSScriptRoot "VirtualDesktops.ps1")
 . (Join-Path $PSScriptRoot "FancyZonesSettings.ps1")
 
+function Get-Windows11Build {
+    $windows = Get-ItemProperty -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" -ErrorAction Stop
+    $build = 0
+    if (-not [int]::TryParse([string] $windows.CurrentBuildNumber, [ref] $build) -or
+        $windows.InstallationType -ne "Client" -or $build -lt 22000) {
+        throw "This installer requires Windows 11. Detected '$($windows.ProductName)' ($($windows.InstallationType), build '$($windows.CurrentBuildNumber)')."
+    }
+    return $build
+}
+
+function Assert-Windows11 {
+    [CmdletBinding()]
+    param()
+
+    [void] (Get-Windows11Build)
+}
+
 function Test-SetupAdministrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = [Security.Principal.WindowsPrincipal]::new($identity)
@@ -187,6 +204,7 @@ function Install-Applications {
         [System.Collections.IDictionary] $ProfileConfiguration
     )
 
+    Assert-Windows11
     Assert-WinGet
 
     Write-Host ""
@@ -277,51 +295,15 @@ function Set-RepositoryApplicationDefaults {
     }
 }
 
-function Get-WindowsDisplayName {
-    $productName = $null
-
-    try {
-        $productName = (Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop).Caption
-    }
-    catch {
-        # Fall back to the registry when CIM is unavailable.
-    }
-
-    if ([string]::IsNullOrWhiteSpace($productName)) {
-        $currentVersion = Get-ItemProperty `
-            -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" `
-            -ErrorAction Stop
-
-        $productName = [string] $currentVersion.ProductName
-        if ([string]::IsNullOrWhiteSpace($productName)) {
-            throw "Could not determine the installed Windows edition."
-        }
-
-        $buildNumber = 0
-        [void][int]::TryParse([string] $currentVersion.CurrentBuildNumber, [ref] $buildNumber)
-
-        if (($currentVersion.InstallationType -eq "Client") -and ($buildNumber -ge 22000)) {
-            $productName = $productName -replace "^Windows 10", "Windows 11"
-        }
-    }
-
-    $productName = ($productName -replace "^Microsoft\s+", "").Trim()
-    foreach ($familyPattern in @("Windows Server \d{4}", "Windows 11", "Windows 10")) {
-        if ($productName -match $familyPattern) {
-            return $Matches[0]
-        }
-    }
-
-    return $productName
-}
-
 function Set-ConfiguredRegistryValues {
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         [AllowEmptyCollection()]
         [object[]] $Settings
     )
 
+    $appliedCount = 0
     foreach ($setting in $Settings) {
         try {
             if (-not (Test-Path -LiteralPath $setting.Path -ErrorAction Stop)) {
@@ -342,6 +324,7 @@ function Set-ConfiguredRegistryValues {
                 -Force `
                 -ErrorAction Stop |
                 Out-Null
+            $appliedCount++
         }
         catch {
             $valueName = if ([string]::IsNullOrEmpty([string] $setting.Name)) {
@@ -350,11 +333,19 @@ function Set-ConfiguredRegistryValues {
             else {
                 $setting.Name
             }
-            throw "Failed to set registry value '$($setting.Path)\$valueName': $($_.Exception.Message)"
+            $message = "Failed to set registry value '$($setting.Path)\$valueName': $($_.Exception.Message)"
+            if ($_.CategoryInfo.Category -in @("PermissionDenied", "SecurityError") -or
+                $_.Exception -is [UnauthorizedAccessException] -or
+                $_.Exception -is [Security.SecurityException]) {
+                Write-Warning "$message. The setting was not applied; continuing with the remaining settings."
+            }
+            else {
+                throw $message
+            }
         }
     }
 
-    Write-Host "[OK] Applied $($Settings.Count) registry settings."
+    Write-Host "[OK] Applied $appliedCount registry settings."
 }
 
 function Disable-ConfiguredServices {
@@ -445,10 +436,9 @@ function Set-ComputerBootDescription {
         [string] $BootLabel
     )
 
-    $windowsName = Get-WindowsDisplayName
-    $description = "$windowsName $BootLabel"
+    $description = "Windows 11 $BootLabel"
 
-    Write-Host "Detected operating system: $windowsName"
+    Write-Host "Detected operating system: Windows 11"
     Write-Host "Setting boot menu entry to: `"$description`""
 
     $result = Invoke-SetupNativeCommand -FilePath "bcdedit.exe" -Arguments @(
@@ -689,6 +679,7 @@ function Invoke-SystemConfiguration {
         [string] $ResourcesRoot
     )
 
+    Assert-Windows11
     if (-not (Test-SetupAdministrator)) {
         throw "System configuration must run as Administrator."
     }
@@ -853,6 +844,7 @@ function Remove-UnwantedSoftware {
         [System.Collections.IDictionary] $ProfileConfiguration
     )
 
+    Assert-Windows11
     Assert-WinGet
 
     Write-Host ""
@@ -874,6 +866,7 @@ function Remove-UnwantedSoftware {
 }
 
 Export-ModuleMember -Function @(
+    "Assert-Windows11"
     "Assert-WinGet"
     "Install-Applications"
     "Invoke-SystemConfiguration"
