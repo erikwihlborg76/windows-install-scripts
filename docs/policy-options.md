@@ -1,32 +1,18 @@
 # Policies for a quieter Windows 11 and Edge setup
 
-Reviewed against Microsoft documentation on 2026-11-15. All distraction controls
-listed below are configured in the shared [LGPO resource](../resources/LGPO/global_policy_objects.txt)
-and imported in every setup mode for both HOME and WORK. Windows and Edge ignore
-policies they do not support; importing a policy does not guarantee enforcement.
+Reviewed against Microsoft documentation on 2026-11-15. All distraction controls listed below are configured in the shared [LGPO resource](../resources/LGPO/global_policy_objects.txt) and imported in every setup mode for both HOME and WORK. Windows and Edge ignore policies they do not support; importing a policy does not guarantee enforcement.
 
-This suppresses Edge recommendations and default-browser/Bing campaigns, Windows
-Search highlights, Start account notifications, and other promotional content.
-It also disables all covered Edge AutoFill categories and Windows Spotlight
-experiences, including some useful reminders and background images. App and site
-notifications are not blocked globally.
+Edition and management requirements were reviewed again on 2026-11-21 for the primary target, Windows 11 Enterprise. See the [support summary](configuration.md#edition-and-management-requirements), including the separate K–12 tenant requirement for Bing ad suppression.
+
+This suppresses Edge recommendations and default-browser/Bing campaigns, Windows Search highlights, Start account notifications, and other promotional content. It also disables all covered Edge AutoFill categories and Windows Spotlight experiences, including some useful reminders and background images. App and site notifications are not blocked globally.
 
 ## Google search
 
-Edge's mandatory [default search provider](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/defaultsearchprovidersearchurl)
-is Google, with the name `Google`, keyword `google.com`, search URL
-`https://www.google.com/search?q={searchTerms}`, and Google search suggestions.
-The new-tab page remains blank; if the standard new-tab page is shown instead,
-[NewTabPageSearchBox=redirect](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/newtabpagesearchbox)
-routes its search box through the address bar and the configured search engine.
-These search policies exclude personal Microsoft-account profiles in Microsoft's
-support metadata, so check the effective provider in each profile at `edge://policy`.
+Edge's mandatory [default search provider](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/defaultsearchprovidersearchurl) is Google, with the name `Google`, keyword `google.com`, search URL `https://www.google.com/search?q={searchTerms}`, and Google search suggestions. The new-tab page remains blank; if the standard new-tab page is shown instead, [NewTabPageSearchBox=redirect](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/newtabpagesearchbox) routes its search box through the address bar and the configured search engine. These search policies exclude personal Microsoft-account profiles in Microsoft's support metadata, so check the effective provider in each profile at `edge://policy`.
 
 ## Windows policies
 
-All entries below are DWORD values. Microsoft lists Pro, Enterprise, Education,
-and IoT editions for these policies; Windows Home edition is not listed. The
-installer's HOME profile is unrelated to the installed Windows edition.
+All entries below are DWORD values. Microsoft lists Pro, Enterprise, Education, and IoT editions for these policies; Windows Home edition is not listed. The installer's HOME profile is unrelated to the installed Windows edition.
 
 | Policy and value | Registry location | Effect and limits |
 | --- | --- | --- |
@@ -35,13 +21,11 @@ installer's HOME profile is unrelated to the installed Windows edition.
 | [DisableAdvertisingId](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-privacy#disableadvertisingid): `DisabledByGroupPolicy=1` | `HKLM\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo` | Enforces the advertising-ID restriction rather than only setting the existing per-user preference. Does not block all ads. |
 | [AllowTailoredExperiencesWithDiagnosticData](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-experience#allowtailoredexperienceswithdiagnosticdata): `DisableTailoredExperiencesWithDiagnosticData=1` | `HKCU\SOFTWARE\Policies\Microsoft\Windows\CloudContent` | Enforces the existing privacy intention. Prevents diagnostic-data-based personalization, but does not remove every tip or offer. |
 | [AllowThirdPartySuggestionsInWindowsSpotlight](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-experience#allowthirdpartysuggestionsinwindowsspotlight): `DisableThirdPartySuggestions=1` | `HKCU\SOFTWARE\Policies\Microsoft\Windows\CloudContent` | Suppresses third-party Spotlight suggestions while retaining the rest of Spotlight. |
-| [DoNotShowFeedbackNotifications](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-experience#donotshowfeedbacknotifications): `DoNotShowFeedbackNotifications=1` | `HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection` | A documented policy alternative to relying on the partially configured per-user feedback-frequency preference. |
+| [DoNotShowFeedbackNotifications](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-experience#donotshowfeedbacknotifications): `DoNotShowFeedbackNotifications=1` | `HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection` | Suppresses feedback requests alongside the complete per-user Never preference (`NumberOfSIUFInPeriod=0` and `PeriodInNanoSeconds=0`). |
 
 ### Policies with narrower edition support
 
-These are documented for Enterprise/Education/IoT, not general Pro/Home deployments.
-They are included in the policy file, but other editions may ignore them. The
-WORK profile does not imply that a supported Windows edition is installed.
+These are documented for regular Enterprise, Education, and IoT Enterprise, not general Pro/Home deployments. They do not require switching from Enterprise to IoT Enterprise or Education. They are included in the policy file, but other editions may ignore them. The WORK profile does not imply that a supported Windows edition is installed.
 
 | Value | Hive and key | Effect |
 | --- | --- | --- |
@@ -54,10 +38,7 @@ WORK profile does not imply that a supported Windows edition is installed.
 
 ## Edge policies
 
-Except for the JSON policy noted below, these are DWORD values under
-`HKLM\SOFTWARE\Policies\Microsoft\Edge`. Personal-account eligibility is taken
-from each policy's support metadata; actual status should be checked in each
-profile at `edge://policy` after restarting Edge.
+Except for the JSON policy noted below, these are DWORD values under `HKLM\SOFTWARE\Policies\Microsoft\Edge`. Personal-account eligibility is taken from each policy's support metadata; actual status should be checked in each profile at `edge://policy` after restarting Edge.
 
 | Policy and configured value | Minimum Edge on Windows | Personal Microsoft account | Effect and limits |
 | --- | --- | --- | --- |
@@ -67,40 +48,26 @@ profile at `edge://policy` after restarting Edge.
 | [PersonalizationReportingEnabled=0](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/personalizationreportingenabled) | 80 | ✅ | Prevents using browsing data for Microsoft advertising/service personalization. Intended for eligible personal accounts; unavailable for enterprise and child accounts. Does not block all ads. |
 | [ShowPDFDefaultRecommendationsEnabled=0](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/showpdfdefaultrecommendationsenabled) | 93 | ❌ | Suppresses prompts to make Edge the default PDF reader. Personal-account support is not documented. Requires browser restart. |
 | [MicrosoftEdgeInsiderPromotionEnabled=0](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/microsoftedgeinsiderpromotionenabled) | 98 | ❌ | Hides Insider-channel promotion on About Edge. |
+| [BingAdsSuppression=1](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/bingadssuppression) | 83 | ✅ | Eligible K–12 EDU tenants only; Windows Education alone is insufficient. Suppresses Bing ads and enforces Strict SafeSearch. Does not affect Google. |
 
-The new-tab app launcher is disabled as well. Existing policies keep new tabs
-blank and suppress feeds, quick links, shopping, Rewards, sidebar, and Copilot
-entry points.
+The new-tab app launcher is disabled as well. Existing policies keep new tabs blank and suppress feeds, quick links, shopping, Rewards, sidebar, and Copilot entry points.
 
 ### Newer AutoFill replacement
 
-[AutofillSettings](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/autofillsettings)
-is available from Edge 154. It uses a REG_SZ JSON list instead of individual DWORD
-switches and supersedes the now-deprecated address/card AutoFill policies. The
-configured value is:
+[AutofillSettings](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/autofillsettings) is available from Edge 154. It uses a REG_SZ JSON list instead of individual DWORD switches and supersedes the now-deprecated address/card AutoFill policies. The configured value is:
 
 ```json
 [{"url_pattern":"*","blocked_types":["all"]}]
 ```
 
-This blocks filling and saving all covered AutoFill categories, including useful
-contact/travel data. The older address/card switches remain disabled for browsers
-that do not support the newer policy. Microsoft's metadata excludes personal
-Microsoft-account profiles from `AutofillSettings`.
+This blocks filling and saving all covered AutoFill categories, including useful contact/travel data. The older address/card switches remain disabled for browsers that do not support the newer policy. Microsoft's metadata excludes personal Microsoft-account profiles from `AutofillSettings`.
 
-The repo already contains recent Copilot controls: `CopilotNewTabPageEnabled`
-and `M365LinksAutoOpenCopilotEnabled` require Edge 148, while
-`CopilotAddressBarSuggestionsEnabled` requires 149. Older Edge versions cannot
-apply policies introduced in those versions.
+The repo already contains recent Copilot controls: `CopilotNewTabPageEnabled` and `M365LinksAutoOpenCopilotEnabled` require Edge 148, while `CopilotAddressBarSuggestionsEnabled` requires 149. Older Edge versions cannot apply policies introduced in those versions.
 
 ## Avoid redundant or obsolete additions
 
-- Do not add `PromotionalTabsEnabled`: it is deprecated in favor of the already
-  configured [ShowRecommendationsEnabled](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/promotionaltabsenabled).
+- Do not add `PromotionalTabsEnabled`: it is deprecated in favor of the already configured [ShowRecommendationsEnabled](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/promotionaltabsenabled).
 - Do not use [NewTabPageSetFeedType](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/newtabpagesetfeedtype): it stopped working after Edge 92. The existing new-tab content and blank-page policies are the relevant controls.
-- `AddressBarMicrosoftSearchInBingProviderEnabled` and `EdgeFollowEnabled` are
-  obsolete. The LGPO resource deletes their previous assignments on reruns.
-  The [registry audit](registry-audit.md) preserves the earlier review and other
-  settings needing cleanup.
+- `AddressBarMicrosoftSearchInBingProviderEnabled` and `EdgeFollowEnabled` are obsolete, and `DefaultBrowserSettingEnabled` only applied to Windows 7. The LGPO resource deletes their previous assignments on reruns. The [registry audit](registry-audit.md) records the resolutions and remaining verification limits.
 
 [Back to configuration](configuration.md).

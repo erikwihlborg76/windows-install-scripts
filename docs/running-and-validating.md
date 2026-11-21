@@ -4,8 +4,7 @@
 
 ## Setup results
 
-A transcript is saved to `%TEMP%\windows-install-<timestamp>.log`. The final summary
-lists operations that could not be completed:
+A transcript is saved to `%TEMP%\windows-install-<timestamp>.log`. The final summary lists operations that could not be completed:
 
 | Exit code | Meaning |
 | --- | --- |
@@ -13,15 +12,11 @@ lists operations that could not be completed:
 | `1` | Stopped on an error |
 | `2` | Finished with warnings; review the summary and transcript |
 
-Optional missing private files and already-absent applications are expected skips.
-`-SkipConfirmation` skips the setup-plan confirmation; mode and profile selection
-are still required. `-NoPause` skips the final pause before exit.
+Optional missing private files and already-absent applications are expected skips. `-SkipConfirmation` skips the setup-plan confirmation; mode and profile selection are still required. `-NoPause` skips the final pause before exit.
 
 ## Development and validation
 
-The repository separates Windows configuration and application preferences in
-`modules/SystemSetup` from private sync discovery and links in `modules/SyncProfile`.
-`Install.ps1` orchestrates the setup; `00-install.ps1` is the download bootstrap.
+The repository separates Windows configuration and application preferences in `modules/SystemSetup` from private sync discovery and links in `modules/SyncProfile`. `Install.ps1` orchestrates the setup; `00-install.ps1` is the download bootstrap.
 
 Run the local validator from the repository root with Windows PowerShell 5.1:
 
@@ -37,7 +32,4 @@ Install-Module PSScriptAnalyzer -RequiredVersion 1.25.0 -Scope CurrentUser -Forc
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test.ps1
 ```
 
-The runner also accepts `-PesterModulePath` and `-ScriptAnalyzerModulePath` for
-isolated copies of those versions. Tests use temporary files, isolated registry
-keys, and mocked setup operations; they do not run the real installer against
-Windows settings. CI runs the validator, PSScriptAnalyzer, and Pester.
+The runner also accepts `-PesterModulePath` and `-ScriptAnalyzerModulePath` for isolated copies of those versions. Tests use temporary files, isolated registry keys, and mocked setup operations; they do not run the real installer against Windows settings. CI runs the validator, PSScriptAnalyzer, and Pester.

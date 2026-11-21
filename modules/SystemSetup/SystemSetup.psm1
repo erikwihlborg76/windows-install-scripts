@@ -3,6 +3,7 @@
 . (Join-Path $PSScriptRoot "ApplicationSettings.ps1")
 . (Join-Path $PSScriptRoot "VirtualDesktops.ps1")
 . (Join-Path $PSScriptRoot "FancyZonesSettings.ps1")
+. (Join-Path $PSScriptRoot "Backgrounds.ps1")
 
 function Get-Windows11Build {
     $windows = Get-ItemProperty -LiteralPath "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" -ErrorAction Stop
@@ -229,9 +230,7 @@ function Install-Applications {
         Install-WinGetManifest -ManifestPath $manifestPath
     }
 
-    if ($CommonConfiguration.ApplicationRegistry) {
-        Set-ConfiguredRegistryValues -Settings @($CommonConfiguration.ApplicationRegistry)
-    }
+    Set-VisualStudioCodeContextMenu
 
     Write-Host ""
     Write-Host "========== Windows activation check =========="
@@ -712,6 +711,7 @@ function Invoke-SystemConfiguration {
     Set-ConfiguredVirtualDesktops -Profile $Profile -Names @($ProfileConfiguration.VirtualDesktopNames)
 
     Import-LgpoPolicy -ResourcesRoot $ResourcesRoot
+    Set-RepositoryBackgrounds -ResourcesRoot $ResourcesRoot
     Disable-NetworkAdapterWake
     Disable-WakeTimers
 }

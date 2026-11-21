@@ -1,25 +1,12 @@
 # Registry and policy audit
 
-Reviewed on 2026-11-15, before the Windows 11-only cleanup.
+Follow-up review: 2026-11-21. Windows 11 Enterprise is the primary target; HOME and WORK remain setup profiles rather than Windows license editions. See [edition and management requirements](configuration.md#edition-and-management-requirements) for policies that need a supported edition, build, or account.
 
-This is a snapshot from before the Windows 11-only cleanup. The legacy EnableFeeds,
-HomeGroup, Peernet, and Windows 7-only DefaultBrowserSettingEnabled assignments,
-plus multi-OS filtering, have since been removed.
-The tables preserve the original reviewed inventory; they are not a live listing.
-The subsequent [distraction-control policies](policy-options.md) are now configured,
-and the obsolete Edge assignments for `AddressBarMicrosoftSearchInBingProviderEnabled`
-and `EdgeFollowEnabled` are removed on reruns.
+The resolution table below describes the current code. The inventory tables preserve the original 2026-11-15 snapshot for traceability; their old values, removed rows, and assessments are historical, not a live listing. In particular, the former VS Code and HOME enrollment rows are no longer defaults, and the old Sound Recorder policy value has changed. Newly added [distraction-control policies](policy-options.md) are documented separately.
 
-This audit covers all 54 registry assignments in `config/Profiles.psd1`, all 103
-LGPO records (including cleanup directives), and the system-sound registry writes.
-It checks names, paths, scopes, types, values, dependencies, and documented support.
-It does not apply configuration or prove that a setting is enforced on another PC.
+The original audit covered 54 registry assignments in `config/Profiles.psd1`, 103 LGPO records (including cleanup directives), and the system-sound registry writes. It checked names, paths, scopes, types, values, dependencies, and documented support. Neither review applies configuration or proves that a setting is enforced on another PC.
 
-Evidence includes Microsoft's current policy documentation and the 224 Microsoft
-ADMX templates installed on the review machine, Windows build 26100.9457. All 67
-distinct Edge policies referenced by LGPO were checked against their individual
-Microsoft policy pages. The failing PC's Windows build 26300 was not available for
-runtime testing. HOME and WORK are installer profiles, not Windows license editions.
+Evidence includes Microsoft's current policy documentation and the 224 Microsoft ADMX templates installed on the review machine, Windows build 26100.9457. All 67 distinct Edge policies referenced by LGPO were checked against their individual Microsoft policy pages. The failing PC's Windows build 26300 was not available for runtime testing. HOME and WORK are installer profiles, not Windows license editions.
 
 ## News, feeds, and widgets
 
@@ -31,70 +18,40 @@ runtime testing. HOME and WORK are installer profiles, not Windows license editi
 | Same key, `DisableWidgetsOnLockScreen`, DWORD `1` | Correct name, type, and value, with the same Insider Preview limitation. |
 | `HKLM\SOFTWARE\Policies\Microsoft\Edge\NewTabPageContentEnabled`, DWORD `0` | Correct for hiding Microsoft content on Edge's new-tab page, including news. This is separate from Windows widgets. The policy's profile restrictions and the other new-tab policies still matter. |
 
-Sources: [exact EnableFeeds registry mapping](https://learn.microsoft.com/en-us/windows/privacy/manage-connections-from-windows-operating-system-components-to-microsoft-services#1824-news-and-interests),
-[Feeds support matrix](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-feeds),
-and [Windows 11 widgets policies](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-newsandinterests).
-For the browser feed, see [Edge new-tab content](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/newtabpagecontentenabled).
+Sources: [exact EnableFeeds registry mapping](https://learn.microsoft.com/en-us/windows/privacy/manage-connections-from-windows-operating-system-components-to-microsoft-services#1824-news-and-interests), [Feeds support matrix](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-feeds), and [Windows 11 widgets policies](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-newsandinterests). For the browser feed, see [Edge new-tab content](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/newtabpagecontentenabled).
 
-The earlier access-denied error establishes a registry permission failure, not why
-the key was protected. Unsupported applicability alone does not explain an ACL
-denial. Skipping the Windows 10 setting on Windows 11 avoids that unnecessary write.
+The earlier access-denied error establishes a registry permission failure, not why the key was protected. Unsupported applicability alone does not explain an ACL denial. Skipping the Windows 10 setting on Windows 11 avoids that unnecessary write.
 
-## Findings that need attention
+## Resolution of the original findings
 
-1. **Wrong policy scope:** `MultiTaskingAltTabFilter=4` is correct in HKCU, meaning
-   no app tabs in Alt+Tab. `Multitasking.admx` defines it as a User policy. The
-   duplicate HKLM assignment has no documented policy consumer and should be removed.
-2. **Incomplete feedback preference:** Microsoft's documented "Never" configuration
-   sets both `NumberOfSIUFInPeriod=0` and `PeriodInNanoSeconds=0`. Only the former is
-   configured. See [Windows feedback settings](https://learn.microsoft.com/en-us/windows/privacy/manage-connections-from-windows-operating-system-components-to-microsoft-services).
-3. **Incomplete VS Code context command:** the registry type and shell-verb location
-   are valid, but the command does not pass the folder argument. Microsoft's own
-   [VS Code installer](https://github.com/microsoft/vscode/blob/main/build/win32/code.iss)
-   passes a quoted `%V` after the executable. The hard-coded per-user executable
-   path also requires that installation location to exist.
-4. **Obsolete Edge policies:** `AddressBarMicrosoftSearchInBingProviderEnabled`
-   stops working after Edge 136; `EdgeFollowEnabled` stops working after Edge 126.
-   See their individual references in the LGPO table below.
-5. **Windows 7-only Edge behavior:** `DefaultBrowserSettingEnabled` does not set
-   the default browser on Windows 10/11. Current Windows requires default-app
-   associations instead. [Policy reference](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/defaultbrowsersettingenabled).
-6. **Education-only Edge behavior:** `BingAdsSuppression=1` requires an eligible
-   K-12 education tenant. It is not a general personal/work ad-blocking setting.
-   [Policy reference](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-policies/bingadssuppression).
-7. **Edition limits:** `DisableWindowsConsumerFeatures=1` is officially an
-   Enterprise/Education/IoT policy. `AllowTelemetry=0` is not diagnostic-data-off on
-   every edition; on unsupported editions it is treated as level 1. The Appx
-   package-removal policy also has Enterprise/Education/IoT and release limits.
-   See [consumer experiences](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-experience#allowwindowsconsumerfeatures),
-   [diagnostic data](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-system#allowtelemetry),
-   and [package-removal policy](https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-applicationmanagement#removedefaultmicrosoftstorepackages).
-8. **Legacy settings:** HomeGroup was removed in Windows 10 1803, and PNRP APIs
-   were removed in Windows 11 24H2. Their old registry switches do not disable a
-   current Windows 11 feature. [Removed Windows features](https://learn.microsoft.com/en-us/windows/whats-new/removed-features).
-9. **Unsupported enrollment workaround:** the eight HOME enrollment/provisioning
-   values are placeholders, not actual MDM enrollment. Their syntax is valid registry
-   data, but their effectiveness as an Edge-management workaround is not a Microsoft
-   contract. They cannot establish support for otherwise restricted policies.
-10. **Different removal mechanisms disagree:** LGPO leaves Sound Recorder unselected
-    (`RemovePackage=0`), while `Common.AppxRemovals` explicitly removes it.
-    Zero means "not selected by this policy," not protection from the separate script.
+| Finding | Current decision |
+| --- | --- |
+| 1. Alt+Tab policy scope | Fixed: retain `MultiTaskingAltTabFilter=4` in HKCU, as defined by the User policy in `Multitasking.admx`. Remove the HKLM default and delete the old HKLM assignment through LGPO on reruns. |
+| 2. Feedback preference | Fixed: both `NumberOfSIUFInPeriod` and `PeriodInNanoSeconds` are DWORD `0`, matching Microsoft's [Never preference](https://learn.microsoft.com/en-us/windows/privacy/manage-connections-from-windows-operating-system-components-to-microsoft-services). The separate feedback-notification policy also remains enabled. |
+| 3. VS Code context command | Fixed: find a standard per-user or system `Code.exe`, quote both its absolute path and `%V`, and register the verb under HKCU. This follows the folder argument used by the [VS Code installer](https://github.com/microsoft/vscode/blob/main/build/win32/code.iss). Registration only follows successful application imports; an absent executable produces a warning. |
+| 4. Obsolete Edge policies | Already resolved: LGPO deletes `AddressBarMicrosoftSearchInBingProviderEnabled` and `EdgeFollowEnabled` rather than configuring ignored values. |
+| 5. Windows 7 default-browser policy | Fixed cleanup: LGPO also deletes `DefaultBrowserSettingEnabled` on reruns. It is not a supported way to set the Windows 11 default browser. |
+| 6. Bing education restriction | Retained with an adjacent code comment and [support note](configuration.md#edition-and-management-requirements): this needs an eligible K–12 EDU tenant, not merely Windows Education. It has no effect on Google searches or ordinary Enterprise accounts. |
+| 7. Enterprise edition requirements | Retained with notes beside the settings and in the [support matrix](configuration.md#edition-and-management-requirements). Regular Enterprise supports the reviewed Enterprise policies; no setting was found to require IoT Enterprise specifically. App-removal policy support also depends on the build and management prerequisites. |
+| 8. Legacy Windows settings | Already resolved: Windows 10 Feeds, HomeGroup, and Peernet defaults were removed during the Windows 11-only cleanup. Setup does not write or clean up the previously failing Windows 10 Feeds key. |
+| 9. Placeholder MDM records | Removed the eight HOME defaults and the README claim. Setup does not simulate enrollment. Existing enrollment/provisioning records are not deleted automatically; Edge policies still require real management and eligible profiles where documented. |
+| 10. Sound Recorder removal disagreement | Fixed: set the LGPO package selector to `1`, matching the existing direct AppX removal. Snipping Tool remains unselected and its capability-removal entry remains commented out. |
+
+## Remaining verification limits
+
+Undocumented UI preferences such as `Start_IrisRecommendations`, taskbar flashing, `HubMode`, and the Gallery namespace overrides remain best-effort customizations. `ShowedToastAtLevel` is diagnostic-consent bookkeeping, not a supported telemetry-off policy. The legacy `DisableStartupSound` policy is not confirmed to suppress Windows 11 startup audio. These settings are not presented as proven Enterprise policies; validate their actual behavior on the deployed Windows build. The original per-setting assessments below remain relevant to those limitations.
+
+The widget board and lock-screen widget switches remain supplementary Insider-documented controls. `AllowNewsAndInterests=0` is the documented Windows 11 widgets policy. A successful registry write or LGPO import does not prove that either supplementary control is enforced on a stable build.
 
 ## How to read the tables
 
-- **Documented:** the configured mapping/value is corroborated by Microsoft
-  documentation or an applicable Microsoft ADMX definition. Edition/version limits
-  still apply.
-- **Conditional:** correct data, with an application, edition, version, or profile
-  dependency.
-- **Preference:** a per-user UI setting rather than an enforceable policy. Its
-  current registry representation is not necessarily a stable public contract.
-- **Unverified:** current public evidence was insufficient to confirm the exact
-  registry tweak. Registry existence or a successful write does not prove an effect.
+- **Documented:** the configured mapping/value is corroborated by Microsoft documentation or an applicable Microsoft ADMX definition. Edition/version limits still apply.
+- **Conditional:** correct data, with an application, edition, version, or profile dependency.
+- **Preference:** a per-user UI setting rather than an enforceable policy. Its current registry representation is not necessarily a stable public contract.
+- **Unverified:** current public evidence was insufficient to confirm the exact registry tweak. Registry existence or a successful write does not prove an effect.
 - **Legacy / obsolete:** tied to an older feature or release.
 
-Direct preference writes may require an Explorer restart or sign-out before the UI
-reflects them. Writable registry data and policy enforcement are separate questions.
+Direct preference writes may require an Explorer restart or sign-out before the UI reflects them. Writable registry data and policy enforcement are separate questions.
 
 ## Profile registry assignments
 
@@ -277,6 +234,6 @@ DELETE resets a policy instead of disabling its feature. DELETEALLVALUES clears 
 
 ## Verification boundary
 
-This report leaves configuration unchanged. Existing schema tests verify data shape and mocked behavior, not Windows policy enforcement. Registry ACLs, device management, license edition, browser version, sign-in profile, and settings refresh determine the actual result. Verify Windows UI behavior after sign-out/restart and inspect `edge://policy` in each Edge profile.
+The follow-up changes installer defaults and tests; it does not apply configuration to the review machine. Schema and regression tests verify data shape, quoted commands, scope, and mocked behavior, not Windows policy enforcement. Registry ACLs, device management, license edition, browser version, sign-in profile, and settings refresh determine the actual result. Verify Windows UI behavior after sign-out/restart and inspect `edge://policy` in each Edge profile.
 
 

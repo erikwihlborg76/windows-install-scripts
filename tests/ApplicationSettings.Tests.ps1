@@ -3,6 +3,59 @@ BeforeAll {
     Import-Module (Join-Path $repositoryRoot "modules\SystemSetup\SystemSetup.psd1") -Force
 }
 
+Describe "Visual Studio Code context menu" {
+    It "quotes the installed <Location> executable and folder argument in a per-user shell verb" -TestCases @(
+        @{ Location = "User" }
+        @{ Location = "System64" }
+        @{ Location = "System32" }
+    ) {
+        param($Location)
+        InModuleScope SystemSetup -Parameters @{ Location = $Location; Root = $TestDrive } {
+            param($Location, $Root)
+            $savedVariables = @{}
+            foreach ($name in @("LOCALAPPDATA", "ProgramW6432", "ProgramFiles", "ProgramFiles(x86)")) {
+                $savedVariables[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
+                [Environment]::SetEnvironmentVariable($name, (Join-Path $Root "$name with spaces"), "Process")
+            }
+            try {
+                $script:fixtureCodeExecutable = switch ($Location) {
+                    "User" { Join-Path $env:LOCALAPPDATA "Programs\Microsoft VS Code\Code.exe" }
+                    "System64" { Join-Path $env:ProgramW6432 "Microsoft VS Code\Code.exe" }
+                    "System32" { Join-Path ${env:ProgramFiles(x86)} "Microsoft VS Code\Code.exe" }
+                }
+                Mock Test-Path { $LiteralPath -eq $script:fixtureCodeExecutable }
+                Mock Set-ConfiguredRegistryValues {}
+                Mock Write-Warning {}
+                Set-VisualStudioCodeContextMenu
+                Should -Invoke Set-ConfiguredRegistryValues -Times 1 -Exactly -ParameterFilter {
+                    $Settings.Count -eq 2 -and
+                    $Settings[0].Path -eq 'HKCU:\Software\Classes\Directory\Background\shell\open_vscode' -and
+                    $Settings[1].Path -eq 'HKCU:\Software\Classes\Directory\Background\shell\open_vscode\command' -and
+                    $Settings[1].Type -eq "String" -and
+                    $Settings[1].Value -eq ('"{0}" "%V"' -f $script:fixtureCodeExecutable)
+                }
+                Should -Invoke Write-Warning -Times 0 -Exactly
+            }
+            finally {
+                foreach ($name in $savedVariables.Keys) {
+                    [Environment]::SetEnvironmentVariable($name, $savedVariables[$name], "Process")
+                }
+            }
+        }
+    }
+
+    It "warns without writing shell entries when VS Code is absent" {
+        InModuleScope SystemSetup {
+            Mock Test-Path { $false }
+            Mock Set-ConfiguredRegistryValues {}
+            Mock Write-Warning {}
+            Set-VisualStudioCodeContextMenu
+            Should -Invoke Set-ConfiguredRegistryValues -Times 0 -Exactly
+            Should -Invoke Write-Warning -Times 1 -Exactly -ParameterFilter { $Message -like '*Visual Studio Code*skipped*' }
+        }
+    }
+}
+
 Describe "Repository application settings" {
     BeforeEach {
         $savedRoaming = $env:APPDATA

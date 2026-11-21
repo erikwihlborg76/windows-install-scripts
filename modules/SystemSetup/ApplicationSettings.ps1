@@ -180,6 +180,31 @@ function Set-XMouseStartupShortcut {
     }
 }
 
+function Set-VisualStudioCodeContextMenu {
+    $candidates = @(
+        if ($env:LOCALAPPDATA) {
+            Join-Path $env:LOCALAPPDATA "Programs\Microsoft VS Code\Code.exe"
+        }
+        foreach ($root in @($env:ProgramW6432, $env:ProgramFiles, ${env:ProgramFiles(x86)}) |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique) {
+            Join-Path $root "Microsoft VS Code\Code.exe"
+        }
+    )
+    $executable = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+    if (-not $executable) {
+        Write-Warning "Visual Studio Code was not found in a standard installation location; its File Explorer context menu was skipped."
+        return
+    }
+
+    # HKCU keeps a per-user VS Code installation out of other users' shell menus.
+    # Quoted %V passes the directory whose background menu was opened.
+    $contextKey = "HKCU:\Software\Classes\Directory\Background\shell\open_vscode"
+    Set-ConfiguredRegistryValues -Settings @(
+        @{ Path = $contextKey;             Name = ""; Type = "String"; Value = "Open with Visual Studio Code" }
+        @{ Path = "$contextKey\command";   Name = ""; Type = "String"; Value = ('"{0}" "%V"' -f $executable) }
+    )
+}
+
 function Set-RepositoryApplicationSettings {
     param(
         [Parameter(Mandatory)]

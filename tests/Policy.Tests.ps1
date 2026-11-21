@@ -70,5 +70,26 @@ Describe "Shared Local Group Policy configuration" {
     It "cleans up obsolete Edge assignments rather than leaving ineffective policies enabled" {
         $edge.AddressBarMicrosoftSearchInBingProviderEnabled | Should -Be "DELETE"
         $edge.EdgeFollowEnabled | Should -Be "DELETE"
+        $edge.DefaultBrowserSettingEnabled | Should -Be "DELETE"
+    }
+
+    It "removes the former machine-scope Alt+Tab assignment on reruns" {
+        $legacy = @($records | Where-Object {
+            $_.Scope -eq "Computer" -and $_.Key -eq 'SOFTWARE\Policies\Microsoft\Windows\Explorer' -and
+            $_.Name -eq "MultiTaskingAltTabFilter"
+        })
+        $legacy | Should -HaveCount 1
+        $legacy[0].Value | Should -Be "DELETE"
+    }
+
+    It "agrees with direct removal of Sound Recorder and keeps Snipping Tool unselected" {
+        $profiles = Import-PowerShellDataFile -LiteralPath (Join-Path $repositoryRoot "config\Profiles.psd1")
+        @($profiles.Common.AppxRemovals | Where-Object Pattern -eq '*WindowsSoundRecorder*') | Should -HaveCount 1
+        $recorder = @($records | Where-Object Key -like '*\Microsoft.WindowsSoundRecorder_8wekyb3d8bbwe')
+        $recorder | Should -HaveCount 1
+        $recorder[0].Value | Should -Be "DWORD:1"
+        $snipping = @($records | Where-Object Key -like '*\Microsoft.ScreenSketch_8wekyb3d8bbwe')
+        $snipping | Should -HaveCount 1
+        $snipping[0].Value | Should -Be "DWORD:0"
     }
 }

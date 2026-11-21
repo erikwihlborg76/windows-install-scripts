@@ -16,6 +16,7 @@
             # Privacy, diagnostics, and feedback
             @{ Path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Diagnostics\DiagTrack";                     Name = "ShowedToastAtLevel";                           Type = "DWord";        Value = 0 }
             @{ Path = "HKCU:\Software\Microsoft\Siuf\Rules";                                                       Name = "NumberOfSIUFInPeriod";                         Type = "DWord";        Value = 0 }
+            @{ Path = "HKCU:\Software\Microsoft\Siuf\Rules";                                                       Name = "PeriodInNanoSeconds";                          Type = "DWord";        Value = 0 }
             @{ Path = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Privacy";                                   Name = "TailoredExperiencesWithDiagnosticDataEnabled"; Type = "DWord";        Value = 0 }
             @{ Path = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo";                           Name = "Enabled";                                      Type = "DWord";        Value = 0 }
             @{ Path = "HKLM:\Software\Policies\Microsoft\Windows\TabletPC";                                        Name = "PreventHandwritingDataSharing";                Type = "DWord";        Value = 1 }
@@ -37,11 +38,11 @@
             @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer";                                        Name = "HideRecommendedSection";                       Type = "DWord";        Value = 1 }
             @{ Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer";                         Name = "AllowOnlineTips";                              Type = "DWord";        Value = 0 }
             @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System";                                          Name = "DisableLockScreenAppNotifications";            Type = "DWord";        Value = 1 }
+            # Enterprise, Education, or IoT Enterprise; unsupported on Pro/Home editions.
             @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent";                                    Name = "DisableWindowsConsumerFeatures";               Type = "DWord";        Value = 1 }
 
             # Multitasking and animations
             @{ Path = "HKCU:\Software\Policies\Microsoft\Windows\Explorer";                                        Name = "MultiTaskingAltTabFilter";                     Type = "DWord";        Value = 4 }
-            @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Explorer";                                        Name = "MultiTaskingAltTabFilter";                     Type = "DWord";        Value = 4 }
             @{ Path = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced";                         Name = "TaskbarAnimations";                            Type = "DWord";        Value = 0 }
             @{ Path = "HKCU:\Control Panel\Desktop\WindowMetrics";                                                 Name = "MinAnimate";                                   Type = "String";       Value = "0" }
 
@@ -63,13 +64,6 @@
             # AutoRun
             @{ Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer";                         Name = "NoAutorun";                                    Type = "DWord";        Value = 1 }
             @{ Path = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer";                         Name = "NoDriveTypeAutoRun";                           Type = "DWord";        Value = 255 }
-        )
-
-        # Applied only when installing the application bundle.
-        ApplicationRegistry = @(
-            # File Explorer context menu for Visual Studio Code
-            @{ Path = "Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\open_vscode";                        Name = "";                                             Type = "String";       Value = "Open with Visual Studio Code" }
-            @{ Path = "Registry::HKEY_CLASSES_ROOT\Directory\Background\shell\open_vscode\command";                Name = "";                                             Type = "ExpandString"; Value = '"%USERPROFILE%\AppData\Local\Programs\Microsoft VS Code\Code.exe"' }
         )
 
         ServicesToDisable = @(
@@ -139,19 +133,7 @@
         VirtualDesktopNames = @()
         AdditionalPackageManifests = @()
         AdditionalWingetNameRemovals = @("Microsoft Teams")
-        Registry = @(
-            # Placeholder MDM enrollment
-            @{ Path = "HKLM:\SOFTWARE\Microsoft\Enrollments\FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF";                 Name = "EnrollmentState";                              Type = "DWord";        Value = 1 }
-            @{ Path = "HKLM:\SOFTWARE\Microsoft\Enrollments\FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF";                 Name = "EnrollmentType";                               Type = "DWord";        Value = 0 }
-            @{ Path = "HKLM:\SOFTWARE\Microsoft\Enrollments\FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF";                 Name = "IsFederated";                                  Type = "DWord";        Value = 0 }
-
-            # Placeholder MDM account provisioning
-            @{ Path = "HKLM:\SOFTWARE\Microsoft\Provisioning\OMADM\Accounts\FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"; Name = "Flags";                                        Type = "DWord";        Value = 14089087 }
-            @{ Path = "HKLM:\SOFTWARE\Microsoft\Provisioning\OMADM\Accounts\FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"; Name = "AcctUId";                                      Type = "String";       Value = "0x000000000000000000000000000000000000000000000000000000000000000000000000" }
-            @{ Path = "HKLM:\SOFTWARE\Microsoft\Provisioning\OMADM\Accounts\FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"; Name = "RoamingCount";                                 Type = "DWord";        Value = 0 }
-            @{ Path = "HKLM:\SOFTWARE\Microsoft\Provisioning\OMADM\Accounts\FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"; Name = "SslClientCertReference";                       Type = "String";       Value = "MY;User;0000000000000000000000000000000000000000" }
-            @{ Path = "HKLM:\SOFTWARE\Microsoft\Provisioning\OMADM\Accounts\FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"; Name = "ProtoVer";                                     Type = "String";       Value = "1.2" }
-        )
+        Registry = @()
     }
 
     WORK = @{

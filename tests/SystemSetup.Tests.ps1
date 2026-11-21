@@ -210,12 +210,12 @@ Describe "Native command results" {
 }
 
 Describe "WinGet configuration guards" {
-    It "applies application registry settings after successful package imports" {
+    It "registers the VS Code context menu after successful package imports" {
         InModuleScope SystemSetup -Parameters @{ Root = $repositoryRoot } {
             param($Root)
             Mock Assert-WinGet {}
             Mock Install-WinGetManifest {}
-            Mock Set-ConfiguredRegistryValues {}
+            Mock Set-VisualStudioCodeContextMenu {}
             Mock Test-WindowsActivation {}
             $profiles = Import-PowerShellDataFile -LiteralPath (Join-Path $Root "config\Profiles.psd1")
 
@@ -223,10 +223,7 @@ Describe "WinGet configuration guards" {
                 -CommonConfiguration $profiles.Common -ProfileConfiguration $profiles.WORK
 
             Should -Invoke Install-WinGetManifest -Times 2 -Exactly
-            Should -Invoke Set-ConfiguredRegistryValues -Times 1 -Exactly -ParameterFilter {
-                $Settings.Count -eq 2 -and $Settings[0].Path -like '*\open_vscode' -and
-                $Settings[1].Path -like '*\open_vscode\command'
-            }
+            Should -Invoke Set-VisualStudioCodeContextMenu -Times 1 -Exactly
         }
     }
 
@@ -235,7 +232,7 @@ Describe "WinGet configuration guards" {
             param($Root)
             Mock Assert-WinGet {}
             Mock Install-WinGetManifest { throw "Package import failed" }
-            Mock Set-ConfiguredRegistryValues {}
+            Mock Set-VisualStudioCodeContextMenu {}
             Mock Test-WindowsActivation {}
             $profiles = Import-PowerShellDataFile -LiteralPath (Join-Path $Root "config\Profiles.psd1")
 
@@ -243,7 +240,7 @@ Describe "WinGet configuration guards" {
                 -CommonConfiguration $profiles.Common -ProfileConfiguration $profiles.WORK } |
                 Should -Throw '*Package import failed*'
 
-            Should -Invoke Set-ConfiguredRegistryValues -Times 0 -Exactly
+            Should -Invoke Set-VisualStudioCodeContextMenu -Times 0 -Exactly
         }
     }
 

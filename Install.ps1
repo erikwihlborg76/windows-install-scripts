@@ -112,18 +112,18 @@ try {
         -Caption "Set up this PC" `
         -Message "Choose what to include." `
         -Labels @(
-            "Configure Windows + &apps"
             "Configure Windows &only"
+            "Configure Windows + &apps"
             "&Full personal setup"
         ) `
         -Descriptions @(
-            "Windows settings, selected app removal, and the app bundle."
             "Windows settings and selected app removal."
+            "Windows settings, selected app removal, and the app bundle."
             "Configuration, apps, and the author's private sync files."
         ) `
         -DefaultChoice -1
 
-    $Mode = @("CONFIGURE_AND_INSTALL", "CONFIGURE_ONLY", "FULL")[$modeChoice]
+    $Mode = @("CONFIGURE_ONLY", "CONFIGURE_AND_INSTALL", "FULL")[$modeChoice]
 
     $profileChoice = Read-SetupChoice `
         -Caption "PC profile" `

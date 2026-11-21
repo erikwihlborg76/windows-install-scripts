@@ -20,10 +20,14 @@ $requiredPaths = @(
     "modules\SystemSetup\ApplicationSettings.ps1"
     "modules\SystemSetup\VirtualDesktops.ps1"
     "modules\SystemSetup\FancyZonesSettings.ps1"
+    "modules\SystemSetup\Backgrounds.ps1"
+    "modules\SystemSetup\DesktopWallpaper.cs"
     "modules\SystemSetup\TerminalSettings.ps1"
     "modules\SyncProfile\SyncProfile.psd1"
     "modules\SyncProfile\SyncProfile.psm1"
     "resources\LGPO\global_policy_objects.txt"
+    "resources\Wallpapers\020.jpg"
+    "resources\Wallpapers\048.jpg"
     "resources\Windows Terminal\settings.json"
     "resources\X-Mouse Button Control\XMBCSettings.xml"
     "resources\PowerToys\FancyZones\settings.json"
@@ -42,6 +46,7 @@ $requiredPaths = @(
     "tests\ApplicationSettings.Tests.ps1"
     "tests\VirtualDesktops.Tests.ps1"
     "tests\FancyZones.Tests.ps1"
+    "tests\Backgrounds.Tests.ps1"
     "tests\TerminalSettings.Tests.ps1"
 )
 
@@ -120,7 +125,7 @@ try {
 
     $requiredProperties = @{
         Common = @(
-            "PackageManifest", "Registry", "ApplicationRegistry", "ServicesToDisable", "ScheduledTasksToDisable",
+            "PackageManifest", "Registry", "ServicesToDisable", "ScheduledTasksToDisable",
             "AppxRemovals", "WingetNameRemovals", "CapabilitiesToRemove"
         )
         HOME = @(
@@ -182,7 +187,6 @@ try {
     }
 
     $registrySettings = @($profiles.Common.Registry) +
-        @($profiles.Common.ApplicationRegistry) +
         @($profiles.HOME.Registry) +
         @($profiles.WORK.Registry)
 

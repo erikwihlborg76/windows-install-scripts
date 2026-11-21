@@ -13,6 +13,7 @@ SOFTWARE\Policies\Microsoft\Dsh
 AllowNewsAndInterests
 DWORD:0
 
+; Supplementary switches: Microsoft still documents these as Insider Preview.
 Computer
 SOFTWARE\Policies\Microsoft\Dsh
 DisableWidgetsBoard
@@ -98,10 +99,18 @@ SOFTWARE\Policies\Microsoft\Edge
 AutoImportAtFirstRun
 DELETE
 
+; BingAdsSuppression requires a Microsoft-identified K-12 EDU tenant.
+; Windows Education/IoT Enterprise by itself does not qualify. Google is unchanged.
 Computer
 SOFTWARE\Policies\Microsoft\Edge
 BingAdsSuppression
 DWORD:1
+
+; Remove the legacy default-browser assignment on reruns (Windows 7 only).
+Computer
+SOFTWARE\Policies\Microsoft\Edge
+DefaultBrowserSettingEnabled
+DELETE
 
 Computer
 SOFTWARE\Policies\Microsoft\Edge
@@ -433,6 +442,8 @@ SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallBlocklist
 2
 SZ:nkbndigcebkoaejohleckhekfmcecfja
 
+; Enterprise/Education, Windows 11 24H2+ and the relevant servicing/management support.
+; CSP metadata also lists IoT Enterprise; see docs/configuration.md#edition-and-management-requirements.
 Computer
 SOFTWARE\Policies\Microsoft\Windows\Appx\RemoveDefaultMicrosoftStorePackages
 Enabled
@@ -521,7 +532,7 @@ DWORD:0
 Computer
 SOFTWARE\Policies\Microsoft\Windows\Appx\RemoveDefaultMicrosoftStorePackages\Microsoft.WindowsSoundRecorder_8wekyb3d8bbwe
 RemovePackage
-DWORD:0
+DWORD:1
 
 Computer
 SOFTWARE\Policies\Microsoft\Windows\Appx\RemoveDefaultMicrosoftStorePackages\Microsoft.WindowsTerminal_8wekyb3d8bbwe
@@ -553,10 +564,18 @@ SOFTWARE\Policies\Microsoft\Windows\Appx\RemoveDefaultMicrosoftStorePackages\Mic
 RemovePackage
 DWORD:1
 
+; Diagnostic data off requires Enterprise/Education (including supported IoT variants).
+; Pro/Home editions cannot use zero to disable all Windows diagnostic data.
 Computer
 SOFTWARE\Policies\Microsoft\Windows\DataCollection
 AllowTelemetry
 DWORD:0
+
+; Clean up the old machine-scope duplicate; Alt+Tab is configured in HKCU.
+Computer
+SOFTWARE\Policies\Microsoft\Windows\Explorer
+MultiTaskingAltTabFilter
+DELETE
 
 ; --- Windows advertising, suggestions, and account notifications ---
 ; User entries target HKCU through Local Group Policy's user configuration.
